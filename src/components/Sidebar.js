@@ -96,8 +96,8 @@ const Sidebar = ({ isAdmin, onLogout, isOpen, onClose }) => {
             className="h-12 w-auto mr-3"
           />
         </div>
-        <h1 className="text-lg font-bold text-gray-900">Despesas São Luiz</h1>
-        <p className="text-sm text-gray-500 mt-1">São Luiz</p>
+        <h1 className="text-lg font-bold text-gray-900">São Luiz Volei Cidadão</h1>
+        <p className="text-sm text-gray-500 mt-1">Sistema Financeiro</p>
       </div>
       
       <nav className="mt-6">
