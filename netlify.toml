@@ -1,0 +1,42 @@
+[build]
+  publish = "build"
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "18"
+  REACT_APP_DB_MODE = "supabase"
+  REACT_APP_SUPABASE_URL = "https://wgaqgsblpersthvytcif.supabase.co"
+  REACT_APP_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndnYXFnc2JscGVyc3Rodnl0Y2lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExNjUyMDQsImV4cCI6MjA3Njc0MTIwNH0.KSgtRaZHayjs1TGFQv1tRd5_TgYFqtXect66bjgdgVc"
+  CI = "false"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[build.processing]
+  skip_processing = false
+
+[build.processing.css]
+  bundle = true
+  minify = true
+
+[build.processing.js]
+  bundle = true
+  minify = true
+
+[build.processing.html]
+  pretty_urls = true
+
+# Cabeçalhos HTTP para controlar cache
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma = "no-cache"
+    Expires = "0"
+
+[[headers]]
+  for = "/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
