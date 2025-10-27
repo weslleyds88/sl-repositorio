@@ -278,8 +278,15 @@ function Login({ onLogin }) {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full md:max-w-md">
         <div className="text-center mb-8">
+          <div className="flex items-center justify-center mb-4">
+            <img 
+              src="/logo.png" 
+              alt="Logo São Luiz" 
+              className="h-24 w-auto"
+            />
+          </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            🏆 Despesas São Luiz
+            Despesas São Luiz
           </h1>
           <p className="text-gray-600">
             Sistema de Gestão Financeira
