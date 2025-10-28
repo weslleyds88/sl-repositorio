@@ -119,13 +119,23 @@ export function AuthProvider({ children }) {
     };
   }, [isAuthenticated, currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Salvar estado no localStorage quando mudar
+  // Salvar estado no localStorage quando mudar (APENAS dados essenciais)
   useEffect(() => {
     if (!loading) {
+      // Extrair apenas dados essenciais (sem avatar_url para evitar localStorage cheio)
+      const essentialUserData = currentUser ? {
+        id: currentUser.id,
+        email: currentUser.email,
+        full_name: currentUser.full_name,
+        role: currentUser.role,
+        account_status: currentUser.account_status,
+        // NÃO incluir: avatar_url, created_at, updated_at (podem ser grandes)
+      } : null;
+
       localStorage.setItem('auth', JSON.stringify({
         isAuth: isAuthenticated,
         isAdm: isAdmin,
-        user: currentUser
+        user: essentialUserData
       }));
     }
   }, [isAuthenticated, isAdmin, currentUser, loading]);
