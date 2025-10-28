@@ -1607,6 +1607,20 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
             setShowSelectPaymentModal(false);
             handleUploadProof(payment);
           }}
+          onPayAll={(payments) => {
+            setShowSelectPaymentModal(false);
+            // Criar um objeto "virtual" com múltiplos pagamentos
+            setSelectedPaymentForProof({
+              isMultiple: true,
+              payments: payments,
+              totalAmount: payments.reduce((sum, p) => {
+                const amount = parseFloat(p.amount || 0);
+                const paidAmount = parseFloat(p.paid_amount || 0);
+                return sum + (amount - paidAmount);
+              }, 0)
+            });
+            setShowProofModal(true);
+          }}
           onClose={() => setShowSelectPaymentModal(false)}
         />
       )}

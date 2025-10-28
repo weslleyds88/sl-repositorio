@@ -1,13 +1,26 @@
 import React, { useState } from 'react';
 
 const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
+  // Detectar se é pagamento múltiplo
+  const isMultiple = payment?.isMultiple || false;
+  
   // Calcular o valor restante a pagar
-  const totalAmount = parseFloat(payment?.amount || 0);
-  const alreadyPaid = parseFloat(payment?.paid_amount || 0);
-  const remainingAmount = totalAmount - alreadyPaid;
+  let totalAmount, alreadyPaid, remainingAmount;
+  
+  if (isMultiple) {
+    // Para múltiplos pagamentos, usar o total já calculado
+    totalAmount = payment.totalAmount;
+    alreadyPaid = 0;
+    remainingAmount = totalAmount;
+  } else {
+    // Para pagamento único
+    totalAmount = parseFloat(payment?.amount || 0);
+    alreadyPaid = parseFloat(payment?.paid_amount || 0);
+    remainingAmount = totalAmount - alreadyPaid;
+  }
   
   const [proofFile, setProofFile] = useState(null);
-  const [proofAmount, setProofAmount] = useState(remainingAmount > 0 ? remainingAmount.toString() : payment?.amount?.toString() || '');
+  const [proofAmount, setProofAmount] = useState(remainingAmount > 0 ? remainingAmount.toString() : totalAmount.toString() || '');
   const [paymentMethod, setPaymentMethod] = useState('pix');
   const [transactionId, setTransactionId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -77,31 +90,73 @@ const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
       console.log('✅ Arquivo convertido para base64');
 
       // 2. Salvar comprovante no banco com imagem em base64
-      const { error: proofError } = await supabase
-        .from('payment_proofs')
-        .insert({
-          payment_id: payment.id,
-          user_id: currentUser.id,
-          proof_file_url: 'database://stored', // URL placeholder para satisfazer constraint
-          proof_image_base64: base64Data,
-          proof_image_type: proofFile.type,
-          proof_image_size: proofFile.size,
-          storage_method: 'database',
-          proof_amount: parseFloat(proofAmount),
-          payment_method: paymentMethod,
-          transaction_id: transactionId.trim() || null,
-          status: 'pending'
+      if (isMultiple) {
+        // Para pagamento múltiplo, criar um comprovante para cada pagamento
+        console.log('💰 Pagamento MÚLTIPLO detectado!');
+        console.log('📋 Pagamentos incluídos:', payment.payments.length);
+        console.log('💵 Valor total do comprovante:', proofAmount);
+        
+        // Criar um comprovante para CADA pagamento com o valor INDIVIDUAL de cada um
+        const proofsToInsert = payment.payments.map(p => {
+          const amountDue = parseFloat(p.amount) - parseFloat(p.paid_amount || 0);
+          console.log(`📝 Criando comprovante para ${p.category}: R$ ${amountDue.toFixed(2)}`);
+          
+          return {
+            payment_id: p.id,
+            user_id: currentUser.id,
+            proof_file_url: 'database://stored',
+            proof_image_base64: base64Data, // Mesma imagem para todos
+            proof_image_type: proofFile.type,
+            proof_image_size: proofFile.size,
+            storage_method: 'database',
+            proof_amount: amountDue, // ✅ Valor INDIVIDUAL de cada cobrança!
+            payment_method: paymentMethod,
+            transaction_id: transactionId.trim() || null,
+            status: 'pending',
+            // Adicionar metadados para identificar pagamento múltiplo
+            multiple_payment_ids: payment.payments.map(p => p.id).join(',')
+          };
         });
+        
+        const { error: proofError } = await supabase
+          .from('payment_proofs')
+          .insert(proofsToInsert);
+        
+        if (proofError) throw proofError;
+        
+        console.log(`✅ ${proofsToInsert.length} comprovantes criados para pagamento múltiplo`);
+      } else {
+        // Pagamento único (comportamento normal)
+        const { error: proofError } = await supabase
+          .from('payment_proofs')
+          .insert({
+            payment_id: payment.id,
+            user_id: currentUser.id,
+            proof_file_url: 'database://stored',
+            proof_image_base64: base64Data,
+            proof_image_type: proofFile.type,
+            proof_image_size: proofFile.size,
+            storage_method: 'database',
+            proof_amount: parseFloat(proofAmount),
+            payment_method: paymentMethod,
+            transaction_id: transactionId.trim() || null,
+            status: 'pending'
+          });
 
-      if (proofError) throw proofError;
+        if (proofError) throw proofError;
+      }
 
       // 4. Criar notificação para o próprio usuário confirmando o envio
+      const userNotificationMessage = isMultiple
+        ? `Comprovante de R$ ${parseFloat(proofAmount).toFixed(2)} enviado para ${payment.payments.length} cobranças. Aguarde aprovação do administrador.`
+        : `Comprovante de R$ ${parseFloat(proofAmount).toFixed(2)} enviado com sucesso. Aguarde aprovação do administrador.`;
+      
       await supabase
         .from('notifications')
         .insert({
           user_id: currentUser.id,
-          title: 'Comprovante Enviado',
-          message: `Comprovante de R$ ${parseFloat(proofAmount).toFixed(2)} enviado com sucesso. Aguarde aprovação do administrador.`,
+          title: isMultiple ? 'Pagamento Múltiplo Enviado' : 'Comprovante Enviado',
+          message: userNotificationMessage,
           type: 'success'
         });
 
@@ -112,10 +167,14 @@ const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
         .eq('role', 'admin');
 
       if (admins && admins.length > 0) {
+        const adminNotificationMessage = isMultiple
+          ? `Novo comprovante MÚLTIPLO de R$ ${parseFloat(proofAmount).toFixed(2)} para ${payment.payments.length} cobranças aguardando aprovação.`
+          : `Novo comprovante de R$ ${parseFloat(proofAmount).toFixed(2)} aguardando aprovação.`;
+        
         const adminNotifications = admins.map(admin => ({
           user_id: admin.id,
-          title: 'Novo Comprovante Recebido',
-          message: `Novo comprovante de R$ ${parseFloat(proofAmount).toFixed(2)} aguardando aprovação.`,
+          title: isMultiple ? 'Pagamento Múltiplo Recebido' : 'Novo Comprovante Recebido',
+          message: adminNotificationMessage,
           type: 'info'
         }));
 
@@ -140,7 +199,7 @@ const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
       <div className="relative top-10 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-medium text-gray-900">
-            Enviar Comprovante de Pagamento
+            {isMultiple ? '💰 Pagar Múltiplas Cobranças' : 'Enviar Comprovante de Pagamento'}
           </h3>
           <button
             onClick={onClose}
@@ -154,23 +213,53 @@ const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Informações do Pagamento */}
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <h4 className="font-medium text-gray-900 mb-2">Pagamento:</h4>
-            <p className="text-sm text-gray-600">
-              <strong>{payment.category}</strong> - R$ {payment.amount?.toFixed(2)}
-            </p>
-            {payment.group_name && (
-              <p className="text-sm text-gray-600">Grupo: {payment.group_name}</p>
-            )}
-            {alreadyPaid > 0 && (
-              <div className="mt-2 pt-2 border-t border-gray-300">
-                <p className="text-xs text-green-600">
-                  ✓ Já pago: R$ {alreadyPaid.toFixed(2)}
+          <div className={`p-3 rounded-lg ${isMultiple ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200' : 'bg-gray-50'}`}>
+            {isMultiple ? (
+              <>
+                <h4 className="font-bold text-green-900 mb-3">Pagamento Múltiplo ({payment.payments.length} cobranças):</h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {payment.payments.map((p, index) => (
+                    <div key={p.id} className="bg-white p-2 rounded border border-green-200">
+                      <p className="text-sm font-semibold text-gray-900">{index + 1}. {p.category}</p>
+                      <div className="flex justify-between text-xs text-gray-600">
+                        <span>Valor: R$ {parseFloat(p.amount).toFixed(2)}</span>
+                        {parseFloat(p.paid_amount || 0) > 0 && (
+                          <span className="text-green-600">Pago: R$ {parseFloat(p.paid_amount).toFixed(2)}</span>
+                        )}
+                        <span className="text-red-600 font-semibold">
+                          Falta: R$ {(parseFloat(p.amount) - parseFloat(p.paid_amount || 0)).toFixed(2)}
+                        </span>
+                      </div>
+                      {p.observation && <p className="text-xs text-gray-500 mt-1">{p.observation}</p>}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 pt-3 border-t-2 border-green-300">
+                  <p className="text-sm font-bold text-green-900">
+                    💵 Valor Total Pendente: R$ {remainingAmount.toFixed(2)}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <h4 className="font-medium text-gray-900 mb-2">Pagamento:</h4>
+                <p className="text-sm text-gray-600">
+                  <strong>{payment.category}</strong> - R$ {totalAmount.toFixed(2)}
                 </p>
-                <p className="text-xs text-red-600 font-semibold">
-                  Falta pagar: R$ {remainingAmount.toFixed(2)}
-                </p>
-              </div>
+                {payment.group_name && (
+                  <p className="text-sm text-gray-600">Grupo: {payment.group_name}</p>
+                )}
+                {alreadyPaid > 0 && (
+                  <div className="mt-2 pt-2 border-t border-gray-300">
+                    <p className="text-xs text-green-600">
+                      ✓ Já pago: R$ {alreadyPaid.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-red-600 font-semibold">
+                      Falta pagar: R$ {remainingAmount.toFixed(2)}
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
