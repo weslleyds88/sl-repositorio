@@ -25,6 +25,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
   // Estados para o Resumo por Atleta
   const [summarySearchTerm, setSummarySearchTerm] = useState('');
   const [summaryYear, setSummaryYear] = useState('all'); // 'all' ou '2024', '2025', etc.
+  const [summaryGroup, setSummaryGroup] = useState('all'); // 'all' ou ID do grupo
   
   // Estados para filtros da Lista de Pagamentos
   const [listMonth, setListMonth] = useState('all'); // 'all' ou '0' a '11'
@@ -1324,13 +1325,13 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-medium text-gray-900">Resumo por Atleta</h3>
             
-            {/* Filtros: Barra de Pesquisa + Ano */}
+            {/* Filtros: Barra de Pesquisa + Grupo + Ano */}
             <div className="flex gap-3">
               {/* Barra de Pesquisa */}
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="🔍 Buscar atleta..."
+                  placeholder="🔍 Buscar por nome ou telefone..."
                   value={summarySearchTerm}
                   onChange={(e) => setSummarySearchTerm(e.target.value)}
                   className="px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 w-64"
@@ -1354,6 +1355,22 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                   </button>
                 )}
               </div>
+
+              {/* Filtro de Grupo */}
+              <select
+                value={summaryGroup}
+                onChange={(e) => setSummaryGroup(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 min-w-[200px]"
+              >
+                <option value="all">👥 Todos os grupos</option>
+                {groups
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map(group => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+              </select>
 
               {/* Filtro de Ano */}
               <select
@@ -1380,7 +1397,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           </div>
 
           {/* Indicador de Filtros Ativos */}
-          {(summarySearchTerm || summaryYear !== 'all') && (
+          {(summarySearchTerm || summaryYear !== 'all' || summaryGroup !== 'all') && (
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center flex-wrap gap-2">
@@ -1390,7 +1407,12 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                   <span className="text-blue-800 font-medium">Filtros ativos:</span>
                   {summarySearchTerm && (
                     <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm font-medium">
-                      Nome: "{summarySearchTerm}"
+                      Busca: "{summarySearchTerm}"
+                    </span>
+                  )}
+                  {summaryGroup !== 'all' && (
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm font-medium">
+                      Grupo: {groups.find(g => g.id === summaryGroup)?.name || summaryGroup}
                     </span>
                   )}
                   {summaryYear !== 'all' && (
@@ -1403,6 +1425,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                   onClick={() => {
                     setSummarySearchTerm('');
                     setSummaryYear('all');
+                    setSummaryGroup('all');
                   }}
                   className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                 >
@@ -1415,11 +1438,14 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {members
               .filter(member => {
-                // Filtrar por nome
+                // Filtrar por nome OU telefone
                 if (summarySearchTerm.trim() !== '') {
                   const searchLower = summarySearchTerm.toLowerCase().trim();
                   const memberName = (member.full_name || member.name || '').toLowerCase();
-                  if (!memberName.includes(searchLower)) {
+                  const memberPhone = (member.phone || '').toLowerCase();
+                  
+                  // Busca por nome ou telefone
+                  if (!memberName.includes(searchLower) && !memberPhone.includes(searchLower)) {
                     return false;
                   }
                 }
@@ -1428,6 +1454,11 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
               .map(member => {
                 // Filtrar pagamentos do membro
                 let memberPayments = filteredPayments.filter(p => p.member_id === member.id);
+                
+                // Filtrar por grupo se não for "all"
+                if (summaryGroup !== 'all') {
+                  memberPayments = memberPayments.filter(p => p.group_id === summaryGroup);
+                }
                 
                 // Filtrar por ano se não for "all"
                 if (summaryYear !== 'all') {
