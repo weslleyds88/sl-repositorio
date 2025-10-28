@@ -198,7 +198,7 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
           .from('payments')
           .update({
             paid_amount: newPaidAmount,
-            status: isFullyPaid ? 'paid' : 'partial',
+            status: isFullyPaid ? 'paid' : 'pending',
             paid_at: isFullyPaid ? new Date().toISOString() : null
           })
           .eq('id', currentProof.payment_id);
@@ -208,7 +208,7 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
           throw paymentError;
         }
         
-        console.log(`✅ Pagamento atualizado: ${isFullyPaid ? 'PAGO TOTAL' : 'PAGAMENTO PARCIAL'} - R$ ${newPaidAmount.toFixed(2)} de R$ ${totalAmount.toFixed(2)}`);
+        console.log(`✅ Pagamento atualizado: ${isFullyPaid ? 'PAGO INTEGRALMENTE' : 'PENDENTE (pagamento parcial)'} - R$ ${newPaidAmount.toFixed(2)} de R$ ${totalAmount.toFixed(2)}`);
         
         // 3. Criar ticket SEMPRE (tanto parcial quanto completo)
         {

@@ -729,7 +729,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
   const getStatusBadge = (status) => {
     const statusConfig = {
       pending: { class: 'status-pending', label: 'Pendente' },
-      partial: { class: 'bg-yellow-100 text-yellow-800 border-yellow-300', label: 'Parcial' },
+      partial: { class: 'status-pending', label: 'Pendente' }, // Parcial = Pendente agora
       paid: { class: 'status-paid', label: 'Pago' },
       expense: { class: 'status-expense', label: 'Despesa' }
     };

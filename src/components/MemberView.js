@@ -62,6 +62,7 @@ const MemberView = ({ db, members, payments }) => {
   const getStatusBadge = (status) => {
     const statusConfig = {
       pending: { class: 'status-pending', label: 'Pendente' },
+      partial: { class: 'status-pending', label: 'Pendente' }, // Parcial = Pendente agora
       paid: { class: 'status-paid', label: 'Pago' },
       expense: { class: 'status-expense', label: 'Despesa' }
     };

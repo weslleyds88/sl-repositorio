@@ -127,9 +127,9 @@ const SelectPaymentModal = ({ payments, onSelect, onClose, onPayAll }) => {
                     <h4 className="font-semibold text-gray-900">
                       {payment.category}
                     </h4>
-                    {payment.status === 'partial' && (
+                    {(payment.status === 'partial' || (payment.paid_amount && parseFloat(payment.paid_amount) > 0)) && (
                       <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
-                        Parcial
+                        Pagamento Parcial
                       </span>
                     )}
                   </div>
