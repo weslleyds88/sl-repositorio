@@ -39,6 +39,8 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
     myPaidPayments: 0,
     myPendingPayments: 0,
     myTotalPending: 0,
+    myPartialPayments: 0,
+    myTotalPartial: 0,
     myDuePayments: 0,
     myOverduePayments: 0,
     myTotalDue: 0,
@@ -62,10 +64,20 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
                paymentDate.getMonth() === parseInt(currentMonthNum) - 1;
       });
 
-      // Receitas do mês atual (apenas de atletas - mensalidades)
+      // Receitas do mês atual (apenas valores efetivamente pagos)
       const totalIncome = monthPayments
-        .filter(p => (p.status === 'paid' || p.status === 'pending') && p.member_id)
-        .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+        .filter(p => p.member_id)
+        .reduce((sum, p) => {
+          if (p.status === 'paid') {
+            // Pagamento completo, somar valor total
+            return sum + parseFloat(p.amount || 0);
+          } else if (p.status === 'partial' && p.paid_amount) {
+            // Pagamento parcial, somar apenas o que já foi pago
+            return sum + parseFloat(p.paid_amount || 0);
+          }
+          // Pendentes não entram na receita
+          return sum;
+        }, 0);
 
       // Despesas do mês atual (todas as despesas, incluindo as totalmente pagas)
       // Despesas são identificadas por NÃO ter member_id (diferente de mensalidades)
@@ -79,15 +91,39 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
       const cashOutflows = monthPayments.filter(p => p.category === 'Saída de Caixa');
       const totalCashOutflows = cashOutflows.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
 
-      // Contar pagamentos de atletas pendentes
-      const pendingAthletePayments = monthPayments.filter(p => p.status === 'pending' && p.member_id).length;
+      // Calcular VALOR pendente de atletas (não apenas quantidade)
+      const pendingAthleteValue = monthPayments
+        .filter(p => p.member_id)
+        .reduce((sum, p) => {
+          if (p.status === 'pending') {
+            // Pagamento totalmente pendente, somar valor completo
+            return sum + parseFloat(p.amount || 0);
+          } else if (p.status === 'partial' && p.paid_amount) {
+            // Pagamento parcial, somar apenas o que FALTA pagar
+            const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
+            return sum + remaining;
+          }
+          return sum;
+        }, 0);
+
+      // Calcular VALOR pendente de despesas
+      const pendingExpensesValue = expenses
+        .filter(p => p.status === 'expense' || p.status === 'partial')
+        .reduce((sum, p) => {
+          if (p.status === 'expense') {
+            return sum + parseFloat(p.amount || 0);
+          } else if (p.status === 'partial' && p.paid_amount) {
+            const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
+            return sum + remaining;
+          }
+          return sum;
+        }, 0);
+
+      // Total de VALOR pendente = atletas + despesas
+      const totalPendingValue = pendingAthleteValue + pendingExpensesValue;
+
+      // Contar quantidade de pagamentos pagos (para o card "Pagos")
       const paidAthletePayments = monthPayments.filter(p => p.status === 'paid' && p.member_id).length;
-
-      // Contar despesas pendentes (não pagas completamente)
-      const pendingExpenses = expenses.filter(p => p.status === 'expense' || p.status === 'partial').length;
-
-      // Total de pendentes = atletas pendentes + despesas pendentes
-      const totalPending = pendingAthletePayments + pendingExpenses;
 
       // Saldo do mês atual (Receitas - Despesas pagas)
       // Não subtraímos totalCashOutflows porque elas já estão incluídas em totalPaidExpenses
@@ -110,7 +146,7 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
         totalIncome,
         totalExpenses, // Total de despesas (pagas + pendentes)
         totalPaidExpenses: totalPaidExpenses + totalCashOutflows, // Despesas efetivamente pagas
-        pendingPayments: totalPending, // Atletas pendentes + despesas pendentes
+        pendingPayments: totalPendingValue, // VALOR pendente (atletas + despesas)
         paidPayments: paidAthletePayments, // Apenas atletas que pagaram
         balance,
         cashAvailable
@@ -129,6 +165,8 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
           myPaidPayments: 0,
           myPendingPayments: 0,
           myTotalPending: 0,
+          myPartialPayments: 0,
+          myTotalPartial: 0,
           myDuePayments: 0,
           myOverduePayments: 0,
           myTotalDue: 0,
@@ -172,6 +210,11 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
       const myOverduePayments = overduePayments.length;
       const myTotalDue = duePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
       const myTotalOverdue = overduePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+      
+      // Adicionar informações de pagamentos parciais
+      const partialPayments = myPayments.filter(p => p.status === 'partial');
+      const myPartialPayments = partialPayments.length;
+      const myTotalPartial = partialPayments.reduce((sum, p) => sum + parseFloat(p.paid_amount || 0), 0);
 
       console.log('📊 Estatísticas FINAIS do atleta:', {
         userId: currentUser.id,
@@ -190,6 +233,8 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
         myPaidPayments,
         myPendingPayments,
         myTotalPending,
+        myPartialPayments,
+        myTotalPartial,
         myDuePayments,
         myOverduePayments,
         myTotalDue,
@@ -384,7 +429,7 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
                 </div>
                 <div className="ml-4 flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-600">Pendentes</p>
-                  <p className="text-lg font-bold text-warning-600 whitespace-nowrap">{stats.pendingPayments}</p>
+                  <p className="text-lg font-bold text-warning-600 whitespace-nowrap">{formatCurrency(stats.pendingPayments)}</p>
                 </div>
               </div>
             </div>
@@ -424,7 +469,7 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
       ) : (
         <>
           {/* Cards para Atleta */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 mb-8">
             <div className="card p-6">
               <div className="flex items-center">
                 <div className="p-2 bg-success-100 rounded-lg flex-shrink-0">
@@ -435,6 +480,21 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
                 <div className="ml-4 flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-600">Pagos</p>
                   <p className="text-lg font-bold text-success-600">{athleteStats.myPaidPayments}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="card p-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-orange-100 rounded-lg flex-shrink-0">
+                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                  </svg>
+                </div>
+                <div className="ml-4 flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-600">Parciais</p>
+                  <p className="text-lg font-bold text-orange-600">{athleteStats.myPartialPayments || 0}</p>
+                  <p className="text-xs text-gray-500 mt-1">{formatCurrency(athleteStats.myTotalPartial || 0)}</p>
                 </div>
               </div>
             </div>

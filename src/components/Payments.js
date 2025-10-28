@@ -781,7 +781,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {isAdmin ? 'Pagamentos dos Atletas' : 'Minhas Mensalidades'}
+            {isAdmin ? 'Pagamentos dos Atletas' : 'Minhas Cobranças'}
           </h1>
           <p className="text-gray-600 mt-1">
             {isAdmin
@@ -1211,7 +1211,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Pendentes</p>
                 <p className="text-2xl font-bold text-yellow-600">
-                  {filteredPayments.filter(p => p.status === 'pending').length}
+                  {filteredPayments.filter(p => p.status === 'pending' || p.status === 'partial').length}
                 </p>
               </div>
             </div>
@@ -1228,9 +1228,17 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                 <p className="text-sm font-medium text-gray-600">Total Pendente</p>
                 <p className="text-2xl font-bold text-blue-600">
                   {formatCurrency(
-                    filteredPayments
-                      .filter(p => p.status === 'pending')
-                      .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)
+                    filteredPayments.reduce((sum, p) => {
+                      if (p.status === 'pending') {
+                        // Pagamento totalmente pendente, somar valor completo
+                        return sum + parseFloat(p.amount || 0);
+                      } else if (p.status === 'partial' && p.paid_amount) {
+                        // Pagamento parcial, somar apenas o que FALTA pagar
+                        const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
+                        return sum + remaining;
+                      }
+                      return sum;
+                    }, 0)
                   )}
                 </p>
               </div>
@@ -1432,9 +1440,19 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
 
               // Calcular valores corretos (usando amount, não displayAmount)
               const totalExpected = memberPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-              const totalPaid = memberPayments
-                .filter(p => p.status === 'paid')
-                .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+              
+              // Somar pagamentos completos E parciais
+              const totalPaid = memberPayments.reduce((sum, p) => {
+                if (p.status === 'paid') {
+                  // Se está pago, somar o valor completo
+                  return sum + parseFloat(p.amount || 0);
+                } else if (p.status === 'partial' && p.paid_amount) {
+                  // Se está parcial, somar apenas o valor já pago
+                  return sum + parseFloat(p.paid_amount || 0);
+                }
+                return sum;
+              }, 0);
+              
               const totalPending = totalExpected - totalPaid;
 
               console.log(`👤 Resumo de ${member.full_name}:`, {
@@ -1516,9 +1534,16 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                       {Array.from(new Set(memberPayments.map(p => p.category))).map(category => {
                         const categoryPayments = memberPayments.filter(p => p.category === category);
                         const categoryTotal = categoryPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-                        const categoryPaid = categoryPayments
-                          .filter(p => p.status === 'paid')
-                          .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+                        
+                        // Somar pagamentos completos E parciais por categoria
+                        const categoryPaid = categoryPayments.reduce((sum, p) => {
+                          if (p.status === 'paid') {
+                            return sum + parseFloat(p.amount || 0);
+                          } else if (p.status === 'partial' && p.paid_amount) {
+                            return sum + parseFloat(p.paid_amount || 0);
+                          }
+                          return sum;
+                        }, 0);
 
                         return (
                           <div key={category} className="flex justify-between">

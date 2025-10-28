@@ -126,7 +126,7 @@ const PaymentTickets = ({ supabase, currentUser, isAdmin = false }) => {
             return (
               <div key={ticket.ticket_id} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
                 <div className="flex justify-between items-start mb-4">
-                  <div>
+                  <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900">
                       {ticket.user_name}
                     </h3>
@@ -134,7 +134,18 @@ const PaymentTickets = ({ supabase, currentUser, isAdmin = false }) => {
                       <p className="text-sm text-gray-600">{ticket.user_email}</p>
                     )}
                     {ticket.group_name && (
-                      <p className="text-sm text-blue-600">Grupo: {ticket.group_name}</p>
+                      <p className="text-sm text-blue-600 font-medium">
+                        📋 {ticket.category} - Grupo: {ticket.group_name}
+                      </p>
+                    )}
+                    {ticket.payment_status && (
+                      <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs font-semibold ${
+                        ticket.payment_status === 'Completo' 
+                          ? 'bg-green-100 text-green-800 border border-green-300' 
+                          : 'bg-yellow-100 text-yellow-800 border border-yellow-300'
+                      }`}>
+                        {ticket.payment_status === 'Completo' ? '✓ PAGAMENTO COMPLETO' : '⏳ PAGAMENTO PARCIAL'}
+                      </span>
                     )}
                   </div>
                   <div className="text-right">
