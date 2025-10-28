@@ -94,13 +94,53 @@ const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
         // Para pagamento múltiplo, criar um comprovante para cada pagamento
         console.log('💰 Pagamento MÚLTIPLO detectado!');
         console.log('📋 Pagamentos incluídos:', payment.payments.length);
-        console.log('💵 Valor total do comprovante:', proofAmount);
+        console.log('💵 Valor DIGITADO pelo usuário:', proofAmount);
+        console.log('💵 Valor TOTAL das cobranças:', remainingAmount);
         
-        // Criar um comprovante para CADA pagamento com o valor INDIVIDUAL de cada um
-        const proofsToInsert = payment.payments.map(p => {
+        // Calcular valor total pendente de todas as cobranças
+        const totalPendingAmount = payment.payments.reduce((sum, p) => {
+          return sum + (parseFloat(p.amount) - parseFloat(p.paid_amount || 0));
+        }, 0);
+        
+        // Valor que o usuário REALMENTE está pagando
+        const actualPaymentAmount = parseFloat(proofAmount);
+        
+        console.log('🔢 Total pendente:', totalPendingAmount.toFixed(2));
+        console.log('🔢 Valor sendo pago:', actualPaymentAmount.toFixed(2));
+        
+        // Criar um comprovante para CADA pagamento, distribuindo proporcionalmente o valor pago
+        let distributedAmounts = [];
+        let totalDistributed = 0;
+        
+        // Primeiro, calcular valores proporcionais para todos exceto o último
+        payment.payments.forEach((p, index) => {
           const amountDue = parseFloat(p.amount) - parseFloat(p.paid_amount || 0);
-          console.log(`📝 Criando comprovante para ${p.category}: R$ ${amountDue.toFixed(2)}`);
+          let proportionalAmount;
           
+          if (index === payment.payments.length - 1) {
+            // Último pagamento: calcular o resto para evitar erros de arredondamento
+            proportionalAmount = actualPaymentAmount - totalDistributed;
+          } else {
+            // Calcular proporcional: (amountDue / totalPendingAmount) * actualPaymentAmount
+            proportionalAmount = (amountDue / totalPendingAmount) * actualPaymentAmount;
+            proportionalAmount = Math.round(proportionalAmount * 100) / 100; // Arredondar
+            totalDistributed += proportionalAmount;
+          }
+          
+          // Garantir que não seja negativo
+          proportionalAmount = Math.max(0, proportionalAmount);
+          
+          console.log(`📝 ${p.category}:`, {
+            amountDue: amountDue.toFixed(2),
+            proportionalAmount: proportionalAmount.toFixed(2),
+            percentage: ((amountDue / totalPendingAmount) * 100).toFixed(1) + '%'
+          });
+          
+          distributedAmounts.push(proportionalAmount);
+        });
+        
+        // Agora criar os comprovantes com os valores já calculados
+        const proofsToInsert = payment.payments.map((p, index) => {
           return {
             payment_id: p.id,
             user_id: currentUser.id,
@@ -109,7 +149,7 @@ const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
             proof_image_type: proofFile.type,
             proof_image_size: proofFile.size,
             storage_method: 'database',
-            proof_amount: amountDue, // ✅ Valor INDIVIDUAL de cada cobrança!
+            proof_amount: distributedAmounts[index], // ✅ Valor PROPORCIONAL ao que foi pago!
             payment_method: paymentMethod,
             transaction_id: transactionId.trim() || null,
             status: 'pending',
@@ -124,7 +164,9 @@ const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
         
         if (proofError) throw proofError;
         
+        const totalInserted = proofsToInsert.reduce((sum, p) => sum + p.proof_amount, 0);
         console.log(`✅ ${proofsToInsert.length} comprovantes criados para pagamento múltiplo`);
+        console.log(`💰 Valor total distribuído: R$ ${totalInserted.toFixed(2)}`);
       } else {
         // Pagamento único (comportamento normal)
         const { error: proofError } = await supabase
