@@ -216,8 +216,19 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           const group = groups.find(g => g.id === payment.group_id);
           const groupName = group ? group.name : 'Grupo';
 
+          // Calcular status correto do grupo baseado no total
+          let groupStatus;
+          if (paidAmount >= totalGroupValue) {
+            groupStatus = 'paid'; // 100% pago
+          } else if (paidAmount > 0) {
+            groupStatus = 'pending'; // Parcialmente pago = Pendente
+          } else {
+            groupStatus = 'pending'; // Não pago = Pendente
+          }
+
           return {
             ...payment,
+            status: groupStatus, // ✅ Status correto do grupo!
             displayAmount: totalGroupValue,
             paidAmount: paidAmount,
             pendingAmount: pendingAmount,
