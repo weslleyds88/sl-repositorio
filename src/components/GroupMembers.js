@@ -232,7 +232,7 @@ function GroupMembers({ group, onClose }) {
   };
 
   // ===== HOOKS DE FILTRO (DEVEM VIR ANTES DOS RETURNS) =====
-  // Filtrar membros pela busca
+  // Filtrar membros pela busca (nome, email, posição, telefone)
   const filteredMembers = React.useMemo(() => {
     const searchLower = searchMembers.toLowerCase().trim();
     if (!searchLower) return members;
@@ -241,12 +241,13 @@ function GroupMembers({ group, onClose }) {
       const name = (member.profiles?.full_name || '').toLowerCase();
       const email = (member.profiles?.email || '').toLowerCase();
       const position = (member.profiles?.position || '').toLowerCase();
+      const phone = (member.profiles?.phone || '').toLowerCase();
       
-      return name.includes(searchLower) || email.includes(searchLower) || position.includes(searchLower);
+      return name.includes(searchLower) || email.includes(searchLower) || position.includes(searchLower) || phone.includes(searchLower);
     });
   }, [members, searchMembers]);
 
-  // Filtrar usuários disponíveis pela busca
+  // Filtrar usuários disponíveis pela busca (nome, email, posição, telefone)
   const filteredAvailable = React.useMemo(() => {
     const searchLower = searchAvailable.toLowerCase().trim();
     if (!searchLower) return availableUsers;
@@ -255,8 +256,9 @@ function GroupMembers({ group, onClose }) {
       const name = (user.full_name || '').toLowerCase();
       const email = (user.email || '').toLowerCase();
       const position = (user.position || '').toLowerCase();
+      const phone = (user.phone || '').toLowerCase();
       
-      return name.includes(searchLower) || email.includes(searchLower) || position.includes(searchLower);
+      return name.includes(searchLower) || email.includes(searchLower) || position.includes(searchLower) || phone.includes(searchLower);
     });
   }, [availableUsers, searchAvailable]);
   // ===== FIM DOS HOOKS DE FILTRO =====
@@ -356,7 +358,7 @@ function GroupMembers({ group, onClose }) {
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="🔍 Buscar por nome, email ou posição..."
+                    placeholder="🔍 Buscar por nome, email, telefone ou posição..."
                     value={searchMembers}
                     onChange={(e) => setSearchMembers(e.target.value)}
                     className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
@@ -396,6 +398,9 @@ function GroupMembers({ group, onClose }) {
                     <div>
                       <p className="font-medium text-gray-900">{member.profiles?.full_name || 'Nome não disponível'}</p>
                       <p className="text-sm text-gray-500">{member.profiles?.email || 'Email não disponível'}</p>
+                      {member.profiles?.phone && (
+                        <p className="text-sm text-gray-600">📱 {member.profiles.phone}</p>
+                      )}
                       {member.profiles?.position && (
                         <span className="text-xs text-blue-600">{member.profiles.position}</span>
                       )}
@@ -430,7 +435,7 @@ function GroupMembers({ group, onClose }) {
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="🔍 Buscar por nome, email ou posição..."
+                    placeholder="🔍 Buscar por nome, email, telefone ou posição..."
                     value={searchAvailable}
                     onChange={(e) => setSearchAvailable(e.target.value)}
                     className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
@@ -478,6 +483,9 @@ function GroupMembers({ group, onClose }) {
                     <div>
                       <p className="font-medium text-gray-900">{user.full_name}</p>
                       <p className="text-sm text-gray-500">{user.email}</p>
+                      {user.phone && (
+                        <p className="text-sm text-gray-600">📱 {user.phone}</p>
+                      )}
                       <div className="flex items-center space-x-2 mt-1">
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                           user.status === 'approved' ? 'bg-green-100 text-green-800' :

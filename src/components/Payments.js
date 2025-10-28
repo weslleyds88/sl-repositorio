@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import PaymentForm from './PaymentForm';
 import PaymentProofModal from './PaymentProofModal';
 import PaymentProofReview from './PaymentProofReview';
+import SelectPaymentModal from './SelectPaymentModal';
 import ExportButtons from './ExportButtons';
 import Notifications from './Notifications';
 import { formatDate, formatCurrency } from '../utils/dateUtils';
@@ -18,6 +19,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
   const [showProofModal, setShowProofModal] = useState(false);
   const [selectedPaymentForProof, setSelectedPaymentForProof] = useState(null);
   const [showProofReview, setShowProofReview] = useState(false);
+  const [showSelectPaymentModal, setShowSelectPaymentModal] = useState(false);
   const [activeTab, setActiveTab] = useState('list'); // 'list' ou 'summary'
   
   // Estados para o Resumo por Atleta
@@ -175,10 +177,16 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           // A contagem correta de membros é o próprio length dos pagamentos do grupo
           const groupMemberCount = allGroupPayments.length;
 
-          // Calcular valores pagos vs pendentes do grupo
+          // Calcular valores pagos vs pendentes do grupo (incluindo parciais)
           const paidAmount = allGroupPayments
-            .filter(p => p.status === 'paid')
-            .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+            .reduce((sum, p) => {
+              // Somar o paid_amount de cada pagamento (para pagamentos parciais)
+              // ou amount completo se status for 'paid'
+              const paid = p.status === 'paid' 
+                ? parseFloat(p.amount || 0) 
+                : parseFloat(p.paid_amount || 0);
+              return sum + paid;
+            }, 0);
 
           const totalGroupValue = groupMemberCount * parseFloat(payment.amount || 0);
           const pendingAmount = totalGroupValue - paidAmount;
@@ -190,10 +198,17 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
             paidAmount: paidAmount,
             pendingAmount: pendingAmount,
             paidCount: allGroupPayments.filter(p => p.status === 'paid').length,
+            partialCount: allGroupPayments.filter(p => p.status === 'partial').length,
             pendingCount: allGroupPayments.filter(p => p.status === 'pending').length,
             groupPaymentsCount: allGroupPayments.length,
             status: payment.status,
-            isFirstPayment: payment.id === firstPayment.id
+            isFirstPayment: payment.id === firstPayment.id,
+            paymentDetails: allGroupPayments.map(p => ({
+              id: p.id,
+              status: p.status,
+              amount: p.amount,
+              paid_amount: p.paid_amount || 0
+            }))
           });
 
           // Buscar nome do grupo
@@ -714,6 +729,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
   const getStatusBadge = (status) => {
     const statusConfig = {
       pending: { class: 'status-pending', label: 'Pendente' },
+      partial: { class: 'bg-yellow-100 text-yellow-800 border-yellow-300', label: 'Parcial' },
       paid: { class: 'status-paid', label: 'Pago' },
       expense: { class: 'status-expense', label: 'Despesa' }
     };
@@ -807,6 +823,24 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           )}
         </div>
       </div>
+
+      {/* Botão de ação para Atletas */}
+      {!isAdmin && filteredPayments.filter(p => p.status === 'pending' || p.status === 'partial').length > 0 && (
+        <div className="mb-6">
+          <button
+            onClick={() => setShowSelectPaymentModal(true)}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-4 rounded-lg font-semibold text-lg transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center space-x-3"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            <span>💳 Cadastrar Pagamento</span>
+          </button>
+          <p className="text-sm text-gray-500 text-center mt-2">
+            Você tem {filteredPayments.filter(p => p.status === 'pending' || p.status === 'partial').length} pagamento(s) pendente(s)
+          </p>
+        </div>
+      )}
 
       {/* Abas - Apenas para Admin */}
       {isAdmin && (
@@ -973,8 +1007,40 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                                 ></div>
                               </div>
                               <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>{payment.groupPayments.filter(p => p.status === 'paid').length} pago(s)</span>
+                                <span>
+                                  {payment.groupPayments.filter(p => p.status === 'paid').length} pago(s)
+                                  {payment.groupPayments.filter(p => p.status === 'partial').length > 0 && (
+                                    <span className="text-yellow-600"> + {payment.groupPayments.filter(p => p.status === 'partial').length} parcial(is)</span>
+                                  )}
+                                </span>
                                 <span>{payment.pendingAmount > 0 ? formatCurrency(payment.pendingAmount) + ' pendente' : 'Completo'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ) : !isAdmin && payment.status === 'partial' && payment.paid_amount && parseFloat(payment.paid_amount) > 0 ? (
+                          /* Mostrar barra de progresso para atletas em pagamentos parciais */
+                          <div className="flex flex-col">
+                            <div className="flex items-center">
+                              <span className="text-green-600 font-bold">
+                                {formatCurrency(parseFloat(payment.paid_amount))}
+                              </span>
+                              <span className="text-gray-400 mx-1">/</span>
+                              <span className="text-gray-900 font-bold">
+                                {formatCurrency(parseFloat(payment.amount))}
+                              </span>
+                            </div>
+                            <div className="mt-1">
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full transition-all duration-300"
+                                  style={{
+                                    width: `${(parseFloat(payment.paid_amount) / parseFloat(payment.amount)) * 100}%`
+                                  }}
+                                ></div>
+                              </div>
+                              <div className="flex justify-between text-xs mt-1">
+                                <span className="text-green-600">✓ Pago</span>
+                                <span className="text-red-600">Falta: {formatCurrency(parseFloat(payment.amount) - parseFloat(payment.paid_amount))}</span>
                               </div>
                             </div>
                           </div>
@@ -1021,12 +1087,12 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
-                        {/* Botão de anexar comprovante - APENAS para atletas (não admins) */}
-                        {payment.status === 'pending' && !isAdmin && currentUser?.role !== 'admin' && (
+                        {/* Botão de anexar comprovante - APENAS para atletas (não admins) e pagamentos pendentes/parciais */}
+                        {(payment.status === 'pending' || payment.status === 'partial') && !isAdmin && currentUser?.role !== 'admin' && (
                           <button
                             onClick={() => handleUploadProof(payment)}
                             className="text-blue-600 hover:text-blue-900"
-                            title="Anexar comprovante"
+                            title={payment.status === 'partial' ? 'Anexar comprovante do restante' : 'Anexar comprovante'}
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -1505,6 +1571,18 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           supabase={supabase}
           currentUser={currentUser}
           onClose={handleProofReviewClose}
+        />
+      )}
+
+      {/* Modal de Seleção de Pagamento para Atletas */}
+      {showSelectPaymentModal && (
+        <SelectPaymentModal
+          payments={filteredPayments}
+          onSelect={(payment) => {
+            setShowSelectPaymentModal(false);
+            handleUploadProof(payment);
+          }}
+          onClose={() => setShowSelectPaymentModal(false)}
         />
       )}
     </div>

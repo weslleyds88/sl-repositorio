@@ -43,21 +43,21 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
         grupo_id: paymentData.group_id || 'Individual'
       });
 
-      // Buscar comprovante
-      const { data: proofData, error: proofError } = await supabase
+      // Buscar TODOS os comprovantes aprovados deste pagamento
+      const { data: allProofs, error: proofsError } = await supabase
         .from('payment_proofs')
-        .select('proof_image_base64, proof_amount, payment_method')
+        .select('proof_image_base64, proof_amount, payment_method, reviewed_at, status')
         .eq('payment_id', paymentId)
         .eq('status', 'approved')
-        .order('reviewed_at', { ascending: false })
-        .limit(1)
-        .single();
+        .order('reviewed_at', { ascending: true }); // Ordem cronológica
 
-      if (proofError) {
-        console.error('❌ Comprovante não encontrado:', proofError);
+      if (proofsError) {
+        console.error('❌ Erro ao buscar comprovantes:', proofsError);
       }
 
-      // Verificar se já existe ticket para este PAGAMENTO ESPECÍFICO (evitar duplicatas)
+      console.log(`📎 Total de comprovantes aprovados: ${allProofs?.length || 0}`);
+
+      // Verificar se já existe ticket para este PAGAMENTO ESPECÍFICO
       const { data: existingTicket } = await supabase
         .from('payment_tickets')
         .select('id')
@@ -66,10 +66,34 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
 
       if (existingTicket) {
         console.log('ℹ️ Ticket já existe para este pagamento:', existingTicket.id);
-        return existingTicket;
+        console.log('🔄 Atualizando ticket com TODOS os comprovantes...');
+        // Ticket existe, mas precisamos ATUALIZAR com todos os comprovantes!
+        // (não retornar, continuar para preparar os dados e fazer UPDATE)
+      } else {
+        console.log('✅ Nenhum ticket existente encontrado, criando novo...');
       }
+
+      // Preparar dados dos comprovantes (múltiplos)
+      let proofImagesData = null;
+      let paymentMethods = [];
       
-      console.log('✅ Nenhum ticket existente encontrado, criando novo...');
+      if (allProofs && allProofs.length > 0) {
+        // Se houver múltiplos comprovantes, armazenar como JSON array
+        if (allProofs.length > 1) {
+          proofImagesData = JSON.stringify(allProofs.map(p => ({
+            image: p.proof_image_base64,
+            amount: p.proof_amount,
+            method: p.payment_method,
+            date: p.reviewed_at
+          })));
+          paymentMethods = [...new Set(allProofs.map(p => p.payment_method))];
+          console.log(`📎 ${allProofs.length} comprovantes serão anexados ao ticket`);
+        } else {
+          // Se for apenas 1, armazenar direto
+          proofImagesData = allProofs[0].proof_image_base64;
+          paymentMethods = [allProofs[0].payment_method];
+        }
+      }
 
       // Criar ticket diretamente
       const ticketData = {
@@ -79,25 +103,45 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
         user_email: paymentData.profiles?.email || null,
         amount: parseFloat(paymentData.amount),
         category: paymentData.category,
-        payment_method: proofData?.payment_method || 'N/A',
-        proof_image_base64: proofData?.proof_image_base64 || null,
+        payment_method: paymentMethods.join(', ') || 'N/A',
+        proof_image_base64: proofImagesData,
         approved_by: adminUserId,
         approved_at: new Date().toISOString(),
         expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 dias
       };
 
-      console.log('📊 Dados do ticket a criar:');
-      console.log('   - Payment ID:', ticketData.payment_id);
-      console.log('   - Atleta ID:', ticketData.user_id);
-      console.log('   - Atleta Nome:', ticketData.user_name);
-      console.log('   - Valor:', ticketData.amount);
-      console.log('   - Categoria:', ticketData.category);
 
-      const { data, error } = await supabase
-        .from('payment_tickets')
-        .insert(ticketData)
-        .select('id')
-        .single();
+      let data, error;
+      
+      if (existingTicket) {
+        // Atualizar ticket existente
+        console.log('♻️ Atualizando ticket existente:', existingTicket.id);
+        const updateResult = await supabase
+          .from('payment_tickets')
+          .update({
+            proof_image_base64: ticketData.proof_image_base64,
+            payment_method: ticketData.payment_method,
+            approved_at: ticketData.approved_at,
+            expires_at: ticketData.expires_at
+          })
+          .eq('id', existingTicket.id)
+          .select('id')
+          .single();
+        
+        data = updateResult.data;
+        error = updateResult.error;
+      } else {
+        // Criar novo ticket
+        console.log('➕ Criando novo ticket');
+        const insertResult = await supabase
+          .from('payment_tickets')
+          .insert(ticketData)
+          .select('id')
+          .single();
+        
+        data = insertResult.data;
+        error = insertResult.error;
+      }
 
       if (error) throw error;
 
@@ -207,16 +251,46 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
 
       if (approveError) throw approveError;
 
-      // 2. Marcar o pagamento como pago
+      // 2. Atualizar o pagamento (pago total ou parcial)
       const currentProof = proofs.find(p => p.id === proofId);
       if (currentProof) {
         console.log('🔄 Atualizando pagamento:', currentProof.payment_id);
         
+        // Buscar dados atuais do pagamento
+        const { data: paymentData, error: fetchError } = await supabase
+          .from('payments')
+          .select('amount, paid_amount')
+          .eq('id', currentProof.payment_id)
+          .single();
+
+        if (fetchError) {
+          console.error('❌ Erro ao buscar pagamento:', fetchError);
+          throw fetchError;
+        }
+
+        // Calcular novo valor pago
+        const totalAmount = parseFloat(paymentData.amount);
+        const currentPaidAmount = parseFloat(paymentData.paid_amount || 0);
+        const proofAmount = parseFloat(currentProof.proof_amount);
+        const newPaidAmount = currentPaidAmount + proofAmount;
+
+        // Verificar se pagamento está completo
+        const isFullyPaid = newPaidAmount >= totalAmount;
+
+        console.log('💰 Cálculo de pagamento:', {
+          totalAmount,
+          currentPaidAmount,
+          proofAmount,
+          newPaidAmount,
+          isFullyPaid
+        });
+        
         const { error: paymentError } = await supabase
           .from('payments')
           .update({
-            status: 'paid',
-            paid_at: new Date().toISOString()
+            paid_amount: newPaidAmount,
+            status: isFullyPaid ? 'paid' : 'partial',
+            paid_at: isFullyPaid ? new Date().toISOString() : null
           })
           .eq('id', currentProof.payment_id);
 
@@ -225,14 +299,14 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
           throw paymentError;
         }
         
-        console.log('✅ Pagamento atualizado com sucesso');
-      }
-
-      // 3. Criar ticket automaticamente
-      const proof = proofs.find(p => p.id === proofId);
-      if (proof) {
-        let ticketId = null;
-        try {
+        console.log(`✅ Pagamento atualizado: ${isFullyPaid ? 'PAGO TOTAL' : 'PAGAMENTO PARCIAL'} - R$ ${newPaidAmount.toFixed(2)} de R$ ${totalAmount.toFixed(2)}`);
+        
+        // 3. Criar ticket APENAS se pagamento estiver totalmente pago
+        if (isFullyPaid) {
+          const proof = proofs.find(p => p.id === proofId);
+          if (proof) {
+            let ticketId = null;
+            try {
           // Verificar se o usuário existe no sistema antes de criar ticket
           console.log('🎫 Verificando usuário antes de criar ticket:', proof.user_id);
 
@@ -300,30 +374,56 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
               console.warn('⚠️ Nenhum admin disponível para criar ticket, pulando...');
             }
           }
-        } catch (ticketError) {
-          console.warn('⚠️ Erro ao criar ticket (não crítico):', ticketError.message || ticketError);
-          // Não falhar a aprovação se o ticket não for criado
-        }
+            } catch (ticketError) {
+              console.warn('⚠️ Erro ao criar ticket (não crítico):', ticketError.message || ticketError);
+              // Não falhar a aprovação se o ticket não for criado
+            }
 
-        // Criar notificação apenas se o usuário NÃO for admin
-        const { data: userProfile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', proof.user_id)
-          .single();
+            // Criar notificação de pagamento completo apenas se o usuário NÃO for admin
+            const { data: userProfile } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', proof.user_id)
+              .single();
 
-        if (userProfile?.role !== 'admin') {
-          await supabase
-            .from('notifications')
-            .insert({
-              user_id: proof.user_id,
-              title: 'Pagamento Aprovado',
-              message: `Seu pagamento de R$ ${proof.proof_amount.toFixed(2)} foi aprovado!${ticketId ? ' Ticket criado para consulta.' : ''}`,
-              type: 'success'
-            });
-          console.log('✅ Notificação de aprovação criada para atleta');
+            if (userProfile?.role !== 'admin') {
+              await supabase
+                .from('notifications')
+                .insert({
+                  user_id: proof.user_id,
+                  title: 'Pagamento Completo! 🎉',
+                  message: `Seu pagamento total de R$ ${totalAmount.toFixed(2)} foi aprovado! Ticket gerado com sucesso.`,
+                  type: 'success'
+                });
+              console.log('✅ Notificação de pagamento completo criada para atleta');
+            } else {
+              console.log('ℹ️ Notificação não enviada (usuário é admin)');
+            }
+          }
         } else {
-          console.log('ℹ️ Notificação de aprovação não enviada (usuário é admin)');
+          // Pagamento parcial - apenas notificar parcial (SEM criar ticket)
+          console.log('ℹ️ Pagamento parcial - ticket NÃO será criado ainda');
+          
+          const proof = proofs.find(p => p.id === proofId);
+          if (proof) {
+            const { data: userProfile } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', proof.user_id)
+              .single();
+
+            if (userProfile?.role !== 'admin') {
+              await supabase
+                .from('notifications')
+                .insert({
+                  user_id: proof.user_id,
+                  title: 'Pagamento Parcial Aprovado',
+                  message: `Seu pagamento parcial de R$ ${proof.proof_amount.toFixed(2)} foi aprovado! Total pago: R$ ${newPaidAmount.toFixed(2)} de R$ ${totalAmount.toFixed(2)}`,
+                  type: 'success'
+                });
+              console.log('✅ Notificação de pagamento parcial criada para atleta');
+            }
+          }
         }
       }
 

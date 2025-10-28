@@ -1,8 +1,13 @@
 import React, { useState } from 'react';
 
 const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
+  // Calcular o valor restante a pagar
+  const totalAmount = parseFloat(payment?.amount || 0);
+  const alreadyPaid = parseFloat(payment?.paid_amount || 0);
+  const remainingAmount = totalAmount - alreadyPaid;
+  
   const [proofFile, setProofFile] = useState(null);
-  const [proofAmount, setProofAmount] = useState(payment?.amount?.toString() || '');
+  const [proofAmount, setProofAmount] = useState(remainingAmount > 0 ? remainingAmount.toString() : payment?.amount?.toString() || '');
   const [paymentMethod, setPaymentMethod] = useState('pix');
   const [transactionId, setTransactionId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,6 +44,14 @@ const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
     
     if (!proofAmount || parseFloat(proofAmount) <= 0) {
       setError('Valor do comprovante deve ser maior que zero');
+      return;
+    }
+
+    // Validar que o valor não seja maior que o valor RESTANTE do pagamento
+    const enteredAmount = parseFloat(proofAmount);
+    
+    if (enteredAmount > remainingAmount) {
+      setError(`O valor não pode ser maior que o valor restante (R$ ${remainingAmount.toFixed(2)})`);
       return;
     }
 
@@ -149,6 +162,16 @@ const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
             {payment.group_name && (
               <p className="text-sm text-gray-600">Grupo: {payment.group_name}</p>
             )}
+            {alreadyPaid > 0 && (
+              <div className="mt-2 pt-2 border-t border-gray-300">
+                <p className="text-xs text-green-600">
+                  ✓ Já pago: R$ {alreadyPaid.toFixed(2)}
+                </p>
+                <p className="text-xs text-red-600 font-semibold">
+                  Falta pagar: R$ {remainingAmount.toFixed(2)}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Upload do Arquivo */}
@@ -178,10 +201,22 @@ const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
               onChange={(e) => setProofAmount(e.target.value)}
               step="0.01"
               min="0.01"
+              max={remainingAmount}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="0,00"
               required
             />
+            <p className="text-xs text-gray-500 mt-1">
+              {alreadyPaid > 0 ? (
+                <>
+                  Máximo: R$ {remainingAmount.toFixed(2)} <span className="text-red-600 font-semibold">(restante a pagar)</span>
+                </>
+              ) : (
+                <>
+                  Máximo: R$ {remainingAmount.toFixed(2)} (você pode pagar parcialmente)
+                </>
+              )}
+            </p>
           </div>
 
           {/* Método de Pagamento */}

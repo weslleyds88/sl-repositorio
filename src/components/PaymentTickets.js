@@ -170,12 +170,39 @@ const PaymentTickets = ({ supabase, currentUser, isAdmin = false }) => {
                   <div className="text-sm text-gray-600">
                     ID: {ticket.ticket_id.slice(0, 8)}...
                   </div>
-                  <button
-                    onClick={() => handleViewProof(ticket)}
-                    className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm"
-                  >
-                    📎 Ver Comprovante
-                  </button>
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    {(() => {
+                      try {
+                        const proofs = JSON.parse(ticket.proof_image_base64);
+                        if (Array.isArray(proofs) && proofs.length > 1) {
+                          // Múltiplos comprovantes - botões separados
+                          return proofs.map((proof, index) => (
+                            <button
+                              key={index}
+                              onClick={() => {
+                                setSelectedTicket({...ticket, singleProof: proof, proofIndex: index + 1});
+                                setShowImage(true);
+                              }}
+                              className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm"
+                            >
+                              📎 Comprovante {index + 1}
+                            </button>
+                          ));
+                        }
+                      } catch (e) {
+                        // Não é JSON, é comprovante único
+                      }
+                      // Comprovante único
+                      return (
+                        <button
+                          onClick={() => handleViewProof(ticket)}
+                          className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm"
+                        >
+                          📎 Ver Comprovante
+                        </button>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
             );
@@ -189,7 +216,10 @@ const PaymentTickets = ({ supabase, currentUser, isAdmin = false }) => {
           <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium text-gray-900">
-                Comprovante - {selectedTicket.user_name}
+                {selectedTicket.singleProof ? 
+                  `Comprovante ${selectedTicket.proofIndex} - ${selectedTicket.user_name}` : 
+                  `Comprovante - ${selectedTicket.user_name}`
+                }
               </h3>
               <button
                 onClick={handleCloseImage}
@@ -200,7 +230,28 @@ const PaymentTickets = ({ supabase, currentUser, isAdmin = false }) => {
             </div>
             
             <div className="text-center">
-              {selectedTicket.proof_image_base64 ? (
+              {selectedTicket.singleProof ? (
+                // Exibir comprovante individual
+                <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                  <div className="mb-3 text-left">
+                    <p className="text-sm text-gray-600">
+                      <strong>Valor:</strong> R$ {selectedTicket.singleProof.amount?.toFixed(2)}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      <strong>Método:</strong> {selectedTicket.singleProof.method}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      <strong>Data:</strong> {new Date(selectedTicket.singleProof.date).toLocaleString('pt-BR')}
+                    </p>
+                  </div>
+                  <img
+                    src={selectedTicket.singleProof.image}
+                    alt={`Comprovante ${selectedTicket.proofIndex}`}
+                    className="max-w-full max-h-96 mx-auto border border-gray-200 rounded"
+                  />
+                </div>
+              ) : selectedTicket.proof_image_base64 ? (
+                // Comprovante único (não múltiplo)
                 <img
                   src={selectedTicket.proof_image_base64}
                   alt="Comprovante"
