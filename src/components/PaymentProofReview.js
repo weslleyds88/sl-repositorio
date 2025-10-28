@@ -270,16 +270,35 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
             }
 
             if (adminUserId) {
+              // BUSCAR IMAGEM DO COMPROVANTE antes de criar ticket (otimização lazy loading)
+              console.log('📸 Buscando imagem do comprovante para o ticket...');
+              const { data: proofWithImage, error: imageError } = await supabase
+                .from('payment_proofs')
+                .select('proof_image_base64')
+                .eq('id', proofId)
+                .single();
+
+              if (imageError) {
+                console.warn('⚠️ Erro ao buscar imagem do comprovante:', imageError);
+              }
+
+              // Mesclar dados do comprovante com a imagem
+              const completeProofData = {
+                ...currentProof,
+                proof_image_base64: proofWithImage?.proof_image_base64 || null
+              };
+
               // Criar ticket individual para este pagamento específico
               console.log('🎫 Criando ticket individual para:', {
                 payment_id: currentProof.payment_id,
                 proof_amount: currentProof.proof_amount,
                 user_id: currentProof.user_id,
                 approved_by: adminUserId,
-                isFullyPaid: isFullyPaid
+                isFullyPaid: isFullyPaid,
+                hasImage: !!completeProofData.proof_image_base64
               });
 
-              ticketId = await createIndividualPaymentTicket(currentProof, paymentData, adminUserId, isFullyPaid);
+              ticketId = await createIndividualPaymentTicket(completeProofData, paymentData, adminUserId, isFullyPaid);
               console.log('✅ Ticket criado com sucesso:', ticketId);
             } else {
               console.warn('⚠️ Nenhum admin disponível para criar ticket, pulando...');
