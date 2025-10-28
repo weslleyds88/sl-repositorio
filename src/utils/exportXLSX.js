@@ -253,3 +253,80 @@ export const exportGroupMembersToXLSX = (members, groupName) => {
   const fileName = `${groupName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, fileName);
 };
+
+export const exportTicketsToXLSX = (tickets) => {
+  // Preparar dados para exportação com TODAS as informações dos tickets
+  const ws_data = [
+    // Cabeçalhos
+    [
+      'ID do Ticket',
+      'Nome do Atleta',
+      'Email',
+      'Categoria',
+      'Grupo',
+      'Valor Pago',
+      'Status do Pagamento',
+      'Método de Pagamento',
+      'Data de Aprovação',
+      'Expira em',
+      'Dias Restantes',
+      'Tem Comprovante'
+    ],
+    // Dados dos tickets
+    ...tickets.map(ticket => [
+      ticket.ticket_id ? ticket.ticket_id.toString().slice(0, 8) : 'N/A',
+      ticket.user_name || 'Não informado',
+      ticket.user_email || 'Não informado',
+      ticket.category || 'N/A',
+      ticket.group_name || 'Sem grupo',
+      parseFloat(ticket.amount || 0),
+      ticket.payment_status || 'N/A',
+      ticket.payment_method || 'N/A',
+      ticket.approved_at ? new Date(ticket.approved_at).toLocaleDateString('pt-BR') + ' ' + new Date(ticket.approved_at).toLocaleTimeString('pt-BR') : 'N/A',
+      ticket.expires_at ? new Date(ticket.expires_at).toLocaleDateString('pt-BR') : 'N/A',
+      ticket.days_remaining || 0,
+      ticket.has_proof ? 'Sim' : 'Não'
+    ])
+  ];
+  
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(ws_data);
+  
+  // Configurar largura das colunas
+  ws['!cols'] = [
+    { width: 15 },  // ID do Ticket
+    { width: 25 },  // Nome do Atleta
+    { width: 30 },  // Email
+    { width: 18 },  // Categoria
+    { width: 20 },  // Grupo
+    { width: 12 },  // Valor Pago
+    { width: 18 },  // Status do Pagamento
+    { width: 18 },  // Método de Pagamento
+    { width: 20 },  // Data de Aprovação
+    { width: 15 },  // Expira em
+    { width: 15 },  // Dias Restantes
+    { width: 15 }   // Tem Comprovante
+  ];
+  
+  // Formatação de moeda para a coluna de valor (coluna F - índice 5)
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let R = 1; R <= range.e.r; ++R) {
+    const cell_address = XLSX.utils.encode_cell({ c: 5, r: R }); // Coluna F (Valor Pago)
+    if (!ws[cell_address]) continue;
+    ws[cell_address].z = '"R$ "#,##0.00';
+  }
+  
+  // Adicionar estilos ao cabeçalho (negrito)
+  for (let C = range.s.c; C <= range.e.c; ++C) {
+    const address = XLSX.utils.encode_col(C) + "1"; // Primeira linha (cabeçalho)
+    if (!ws[address]) continue;
+    if (!ws[address].s) ws[address].s = {};
+    ws[address].s.font = { bold: true };
+  }
+  
+  XLSX.utils.book_append_sheet(wb, ws, 'Tickets de Pagamento');
+  
+  // Nome do arquivo com data
+  const fileName = `tickets_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+};

@@ -22,10 +22,10 @@ function AdminPanel({ isAdmin, supabase }) {
     try {
       console.log('🔍 Carregando dados do painel administrativo...');
 
-      // Carregar usuários pendentes de aprovação
+      // Carregar usuários pendentes de aprovação (COM FOTOS)
       const { data: pending, error: pendingError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, email, full_name, phone, position, role, status, account_status, birth_date, rg, region, gender, responsible_name, responsible_phone, avatar_url, created_at, updated_at')
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
@@ -38,10 +38,10 @@ function AdminPanel({ isAdmin, supabase }) {
       console.log('📋 Dados dos pendentes:', pending);
       setPendingUsers(pending || []);
 
-      // Carregar todos os usuários
+      // Carregar todos os usuários (COM FOTOS)
       const { data: all, error: allError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, email, full_name, phone, position, role, status, account_status, birth_date, rg, region, gender, responsible_name, responsible_phone, avatar_url, created_at, updated_at')
         .order('created_at', { ascending: false });
 
       if (allError) {
@@ -227,6 +227,91 @@ function AdminPanel({ isAdmin, supabase }) {
     }
   };
 
+  const handleDeleteUser = async (userId, userName) => {
+    const confirmacao = window.prompt(
+      `🗑️ ATENÇÃO: Você está prestes a EXCLUIR PERMANENTEMENTE a conta de "${userName}"!\n\n` +
+      `⚠️ Isso irá:\n` +
+      `- Deletar o perfil do usuário\n` +
+      `- Remover todos os pagamentos associados\n` +
+      `- Excluir todos os comprovantes\n` +
+      `- Remover dos grupos\n` +
+      `- Deletar tickets\n\n` +
+      `❌ ESTA AÇÃO NÃO PODE SER DESFEITA!\n\n` +
+      `Digite exatamente "EXCLUIR" para confirmar:`
+    );
+    
+    if (confirmacao !== 'EXCLUIR') {
+      alert('❌ Exclusão cancelada.');
+      return;
+    }
+
+    try {
+      console.log('🗑️ Excluindo conta do usuário:', userId, userName);
+      
+      // 1. Deletar pagamentos associados
+      console.log('🗑️ Excluindo pagamentos do usuário...');
+      const { error: paymentsError } = await supabase
+        .from('payments')
+        .delete()
+        .eq('member_id', userId);
+      
+      if (paymentsError) {
+        console.error('⚠️ Erro ao deletar pagamentos:', paymentsError);
+      }
+
+      // 2. Deletar comprovantes de pagamento
+      console.log('🗑️ Excluindo comprovantes do usuário...');
+      const { error: proofsError } = await supabase
+        .from('payment_proofs')
+        .delete()
+        .eq('user_id', userId);
+      
+      if (proofsError) {
+        console.error('⚠️ Erro ao deletar comprovantes:', proofsError);
+      }
+
+      // 3. Deletar tickets
+      console.log('🗑️ Excluindo tickets do usuário...');
+      const { error: ticketsError } = await supabase
+        .from('payment_tickets')
+        .delete()
+        .eq('user_id', userId);
+      
+      if (ticketsError) {
+        console.error('⚠️ Erro ao deletar tickets:', ticketsError);
+      }
+
+      // 4. Remover do grupo (user_groups)
+      console.log('🗑️ Removendo usuário dos grupos...');
+      const { error: groupsError } = await supabase
+        .from('user_groups')
+        .delete()
+        .eq('user_id', userId);
+      
+      if (groupsError) {
+        console.error('⚠️ Erro ao remover dos grupos:', groupsError);
+      }
+
+      // 5. Deletar o perfil do banco de dados
+      console.log('🗑️ Excluindo perfil do banco de dados...');
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userId);
+
+      if (profileError) throw profileError;
+
+      // Recarregar dados
+      loadData();
+
+      alert(`✅ Conta de "${userName}" foi EXCLUÍDA PERMANENTEMENTE!\n\nO usuário precisará se cadastrar novamente para ter acesso.`);
+      console.log('✅ Usuário e todos os dados relacionados foram excluídos com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao excluir usuário:', error);
+      alert('Erro ao excluir usuário: ' + error.message);
+    }
+  };
+
   const handleResetPassword = async (userEmail, userName) => {
     if (!window.confirm(`📧 Enviar email de reset de senha para ${userName}?\n\nEmail: ${userEmail}\n\nO usuário receberá um link para criar uma nova senha.`)) {
       return;
@@ -255,7 +340,22 @@ function AdminPanel({ isAdmin, supabase }) {
       alert(`✅ Email de reset de senha enviado para ${userEmail}!\n\n📧 Email: ${userEmail}\n🔗 Link redirecionará para: ${redirectUrl}\n\nO usuário receberá um link para criar uma nova senha.`);
     } catch (error) {
       console.error('❌ Erro ao resetar senha:', error);
-      alert('Erro ao enviar email de reset: ' + error.message);
+      
+      // Tratamento especial para erro de limite de email
+      if (error.message && error.message.includes('email rate limit exceeded')) {
+        alert(
+          '⚠️ LIMITE DE EMAILS ATINGIDO\n\n' +
+          '🚫 O Supabase bloqueou temporariamente o envio de emails.\n\n' +
+          '⏰ AGUARDE 10-15 MINUTOS e tente novamente.\n\n' +
+          '💡 DICA:\n' +
+          '- O plano gratuito do Supabase tem limite de emails por hora\n' +
+          '- Evite enviar múltiplos resets em sequência\n' +
+          '- Se o problema persistir, aguarde 1 hora\n\n' +
+          `📧 Email que tentou resetar: ${userEmail}`
+        );
+      } else {
+        alert('❌ Erro ao enviar email de reset: ' + error.message);
+      }
     }
   };
 
@@ -602,6 +702,15 @@ function AdminPanel({ isAdmin, supabase }) {
                       title="Enviar email de reset de senha"
                     >
                       🔑 Reset Senha
+                    </button>
+
+                    {/* Botão Excluir Conta */}
+                    <button
+                      onClick={() => handleDeleteUser(user.id, user.full_name)}
+                      className="text-sm px-3 py-1 rounded font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                      title="Excluir conta permanentemente"
+                    >
+                      🗑️ Excluir
                     </button>
                   </div>
                 </div>

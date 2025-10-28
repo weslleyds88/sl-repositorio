@@ -53,7 +53,7 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
         proof_image_base64: proofData.proof_image_base64, // 1 comprovante por ticket
         approved_by: adminUserId,
         approved_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 dias
+        expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString() // 60 dias
       };
 
       console.log('📝 Dados do ticket:', {
@@ -101,51 +101,32 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
 
   const loadPendingProofs = useCallback(async () => {
     try {
-      console.log('🔍 Carregando comprovantes pendentes...');
+      console.log('🔍 Carregando comprovantes pendentes SEM IMAGENS (otimizado)...');
 
+      // Carregar apenas metadados, SEM as imagens pesadas
       const { data, error } = await supabase
         .from('payment_proofs')
-        .select('*, profiles:user_id(id, full_name, email)')
+        .select('id, payment_id, user_id, proof_amount, payment_method, transaction_id, status, submitted_at, storage_method, profiles:user_id(id, full_name, email)')
         .eq('status', 'pending')
         .order('submitted_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Erro na query:', error);
+        console.log('❌ Erro na query:', error);
         throw error;
       }
 
-      console.log('📋 Comprovantes com dados dos usuários:', data);
+      console.log('📋 Comprovantes (metadados) carregados:', data?.length || 0);
 
-      // Processar comprovantes para garantir que tenham imagem válida
-      const processedProofs = (data || []).map(proof => {
-        // Se tem base64, usar ele
-        if (proof.proof_image_base64) {
-          return {
-            ...proof,
-            imageUrl: proof.proof_image_base64,
-            hasValidImage: true
-          };
-        }
-        
-        // Se não tem base64 mas tem URL, tentar usar URL
-        if (proof.proof_file_url && !isMalformedProofUrl(proof.proof_file_url)) {
-          return {
-            ...proof,
-            imageUrl: proof.proof_file_url,
-            hasValidImage: true
-          };
-        }
-        
-        // Se não tem imagem válida
-        return {
-          ...proof,
-          imageUrl: null,
-          hasValidImage: false
-        };
-      });
+      // Adicionar flag de "precisa carregar imagem"
+      const processedProofs = (data || []).map(proof => ({
+        ...proof,
+        imageUrl: null,  // Será carregada sob demanda
+        hasValidImage: true,  // Assumir que tem (carregar depois)
+        imageLoaded: false
+      }));
 
       setProofs(processedProofs);
-      console.log('✅ Comprovantes carregados:', processedProofs.length);
+      console.log('✅ Comprovantes processados (sem imagens):', processedProofs.length);
     } catch (error) {
       console.error('❌ Erro ao carregar comprovantes:', error);
       setProofs([]);
@@ -418,6 +399,30 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
         hasBase64: !!proof.proof_image_base64,
         hasValidImage: proof.hasValidImage
       });
+
+      // Se NÃO tem imagem carregada, buscar do banco AGORA (lazy loading)
+      if (!proof.proof_image_base64) {
+        console.log('🔍 Buscando imagem do banco de dados (lazy loading)...');
+        const { data, error } = await supabase
+          .from('payment_proofs')
+          .select('proof_image_base64, proof_image_type, proof_image_size, proof_file_url, storage_method')
+          .eq('id', proof.id)
+          .single();
+
+        if (error) {
+          console.error('❌ Erro ao buscar imagem:', error);
+          throw new Error('Erro ao carregar imagem do banco de dados');
+        }
+
+        // Atualizar o proof com a imagem carregada
+        proof.proof_image_base64 = data.proof_image_base64;
+        proof.proof_image_type = data.proof_image_type;
+        proof.proof_image_size = data.proof_image_size;
+        proof.proof_file_url = data.proof_file_url;
+        proof.storage_method = data.storage_method;
+
+        console.log('✅ Imagem carregada do banco de dados');
+      }
 
       // Se tem imagem em base64, usar ela
       if (proof.proof_image_base64) {

@@ -7,6 +7,10 @@ import Notifications from './Notifications';
 // Função auxiliar para formatar nome do mês
 
 const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefresh, isAdmin, supabase, currentUser }) => {
+  // Estados para filtros independentes de mês e ano
+  const [selectedMonth, setSelectedMonth] = useState('all');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  
   // Função auxiliar para formatar nome do mês
   const formatMonthName = (monthString) => {
     if (!monthString) return 'Mês inválido';
@@ -20,6 +24,20 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
     ];
 
     return `${months[monthIndex]} ${year}`;
+  };
+  
+  // Função para gerar o texto do período selecionado
+  const getPeriodLabel = () => {
+    const months = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    
+    if (selectedMonth === 'all') {
+      return `Resumo Financeiro de ${selectedYear}`;
+    } else {
+      return `Resumo Financeiro de ${months[parseInt(selectedMonth)]} ${selectedYear}`;
+    }
   };
 
   const [stats, setStats] = useState({
@@ -50,18 +68,24 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
   useEffect(() => {
     calculateStats();
     loadRecentPayments();
-  }, [members, payments, currentMonth]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [members, payments, selectedMonth, selectedYear, currentMonth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const calculateStats = () => {
     // Estatísticas gerais (para admin)
     if (isAdmin) {
-      // Filtrar pagamentos do mês atual para estatísticas mensais
+      // Filtrar pagamentos de acordo com os filtros de mês e ano
       const monthPayments = payments.filter(payment => {
         if (!payment.due_date) return false;
         const paymentDate = new Date(payment.due_date);
-        const [currentYear, currentMonthNum] = currentMonth.split('-');
-        return paymentDate.getFullYear() === parseInt(currentYear) &&
-               paymentDate.getMonth() === parseInt(currentMonthNum) - 1;
+        
+        // Filtro de ano
+        const yearMatch = paymentDate.getFullYear() === parseInt(selectedYear);
+        
+        // Filtro de mês (se 'all', aceita todos os meses)
+        const monthMatch = selectedMonth === 'all' || 
+                          paymentDate.getMonth() === parseInt(selectedMonth);
+        
+        return yearMatch && monthMatch;
       });
 
       // Receitas do mês atual (apenas valores efetivamente pagos)
@@ -190,7 +214,8 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
       const today = new Date();
       today.setHours(0, 0, 0, 0); // Zerar horas para comparação correta
       
-      const pendingPayments = myPayments.filter(p => p.status === 'pending');
+      // Incluir cobranças PENDING e PARTIAL (que ainda não foram 100% pagas)
+      const pendingPayments = myPayments.filter(p => p.status === 'pending' || p.status === 'partial');
       const duePayments = pendingPayments.filter(p => {
         const dueDate = new Date(p.due_date);
         dueDate.setHours(0, 0, 0, 0);
@@ -205,11 +230,42 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
       const myTotalPayments = myPayments.length;
       const myPaidPayments = myPayments.filter(p => p.status === 'paid').length;
       const myPendingPayments = pendingPayments.length;
-      const myTotalPending = pendingPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+      
+      // Total Pendente: considerar valor restante para parciais
+      const myTotalPending = pendingPayments.reduce((sum, p) => {
+        if (p.status === 'pending') {
+          return sum + parseFloat(p.amount || 0);
+        } else if (p.status === 'partial' && p.paid_amount) {
+          const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
+          return sum + remaining;
+        }
+        return sum;
+      }, 0);
+      
       const myDuePayments = duePayments.length;
       const myOverduePayments = overduePayments.length;
-      const myTotalDue = duePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-      const myTotalOverdue = overduePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+      
+      // Total A Vencer: considerar valor restante para parciais
+      const myTotalDue = duePayments.reduce((sum, p) => {
+        if (p.status === 'pending') {
+          return sum + parseFloat(p.amount || 0);
+        } else if (p.status === 'partial' && p.paid_amount) {
+          const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
+          return sum + remaining;
+        }
+        return sum;
+      }, 0);
+      
+      // Total Vencido: considerar valor restante para parciais
+      const myTotalOverdue = overduePayments.reduce((sum, p) => {
+        if (p.status === 'pending') {
+          return sum + parseFloat(p.amount || 0);
+        } else if (p.status === 'partial' && p.paid_amount) {
+          const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
+          return sum + remaining;
+        }
+        return sum;
+      }, 0);
       
       // Adicionar informações de pagamentos parciais
       const partialPayments = myPayments.filter(p => p.status === 'partial');
@@ -331,7 +387,13 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
             <>
               <ExportButtons
                 members={members}
-                payments={payments.filter(p => p.due_date && p.due_date.startsWith(currentMonth))}
+                payments={payments.filter(p => {
+                  if (!p.due_date) return false;
+                  const paymentDate = new Date(p.due_date);
+                  const yearMatch = paymentDate.getFullYear() === parseInt(selectedYear);
+                  const monthMatch = selectedMonth === 'all' || paymentDate.getMonth() === parseInt(selectedMonth);
+                  return yearMatch && monthMatch;
+                })}
                 db={db}
               />
               <button
@@ -348,28 +410,46 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
         </div>
       </div>
 
-      {/* Seletor de Mês - apenas admin */}
+      {/* Filtros de Mês e Ano - apenas admin */}
       {isAdmin && (
-        <div className="flex items-center justify-center mb-6">
-          <button
-            onClick={() => onMonthChange(getPreviousMonth(currentMonth))}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <h2 className="text-xl font-semibold text-gray-900 mx-4 min-w-[200px] text-center">
-            {formatMonthName(currentMonth)}
-          </h2>
-          <button
-            onClick={() => onMonthChange(getNextMonth(currentMonth))}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
+        <div className="flex items-center justify-center gap-4 mb-6">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">📅 Mês:</label>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="all">Todos os meses</option>
+              <option value="0">Janeiro</option>
+              <option value="1">Fevereiro</option>
+              <option value="2">Março</option>
+              <option value="3">Abril</option>
+              <option value="4">Maio</option>
+              <option value="5">Junho</option>
+              <option value="6">Julho</option>
+              <option value="7">Agosto</option>
+              <option value="8">Setembro</option>
+              <option value="9">Outubro</option>
+              <option value="10">Novembro</option>
+              <option value="11">Dezembro</option>
+            </select>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">📆 Ano:</label>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="2023">2023</option>
+              <option value="2024">2024</option>
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+              <option value="2027">2027</option>
+            </select>
+          </div>
         </div>
       )}
 
@@ -449,9 +529,9 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
             </div>
           </div>
 
-          {/* Saldo do Mês - apenas admin */}
+          {/* Saldo do Período - apenas admin */}
           <div className="card p-6 mb-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Resumo Financeiro do Mês</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{getPeriodLabel()}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="text-center bg-green-50 rounded-lg p-4 border-2 border-green-200">
                 <p className="text-sm text-green-600 font-medium">💵 Receitas</p>

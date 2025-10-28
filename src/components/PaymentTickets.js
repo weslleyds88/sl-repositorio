@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { exportTicketsToXLSX } from '../utils/exportXLSX';
 
 const PaymentTickets = ({ supabase, currentUser, isAdmin = false }) => {
   const [tickets, setTickets] = useState([]);
@@ -47,14 +48,48 @@ const PaymentTickets = ({ supabase, currentUser, isAdmin = false }) => {
     return { text: `${days} dias restantes`, color: 'text-green-600' };
   };
 
-  const handleViewProof = (ticket) => {
-    setSelectedTicket(ticket);
-    setShowImage(true);
+  const handleViewProof = async (ticket) => {
+    try {
+      // Carregar imagem SOB DEMANDA (só quando clicar)
+      console.log('🖼️ Carregando comprovante do ticket:', ticket.ticket_id);
+      
+      const { data, error } = await supabase
+        .from('payment_tickets')
+        .select('proof_image_base64')
+        .eq('id', ticket.ticket_id)
+        .single();
+      
+      if (error) throw error;
+      
+      setSelectedTicket({
+        ...ticket,
+        proof_image_base64: data.proof_image_base64
+      });
+      setShowImage(true);
+    } catch (error) {
+      console.error('Erro ao carregar comprovante:', error);
+      alert('Erro ao carregar comprovante: ' + error.message);
+    }
   };
 
   const handleCloseImage = () => {
     setShowImage(false);
     setSelectedTicket(null);
+  };
+
+  const handleExportTickets = () => {
+    if (filteredTickets.length === 0) {
+      alert('Não há tickets para exportar.');
+      return;
+    }
+    
+    try {
+      exportTicketsToXLSX(filteredTickets);
+      alert(`✅ ${filteredTickets.length} ticket(s) exportado(s) com sucesso!`);
+    } catch (error) {
+      console.error('Erro ao exportar tickets:', error);
+      alert('Erro ao exportar tickets: ' + error.message);
+    }
   };
 
   if (loading) {
@@ -79,12 +114,24 @@ const PaymentTickets = ({ supabase, currentUser, isAdmin = false }) => {
         <h2 className="text-2xl font-bold text-gray-900">
           {isAdmin ? '📋 Todos os Tickets' : '🎫 Meus Tickets'}
         </h2>
-        <button
-          onClick={loadTickets}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm"
-        >
-          🔄 Atualizar
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={handleExportTickets}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm flex items-center"
+            title="Exportar todos os tickets para Excel"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Exportar Excel
+          </button>
+          <button
+            onClick={loadTickets}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm"
+          >
+            🔄 Atualizar
+          </button>
+        </div>
       </div>
 
       {/* Filtro por Atleta - Apenas para Admin */}
@@ -182,37 +229,16 @@ const PaymentTickets = ({ supabase, currentUser, isAdmin = false }) => {
                     ID: {ticket.ticket_id.slice(0, 8)}...
                   </div>
                   <div className="flex flex-wrap gap-2 justify-end">
-                    {(() => {
-                      try {
-                        const proofs = JSON.parse(ticket.proof_image_base64);
-                        if (Array.isArray(proofs) && proofs.length > 1) {
-                          // Múltiplos comprovantes - botões separados
-                          return proofs.map((proof, index) => (
-                            <button
-                              key={index}
-                              onClick={() => {
-                                setSelectedTicket({...ticket, singleProof: proof, proofIndex: index + 1});
-                                setShowImage(true);
-                              }}
-                              className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm"
-                            >
-                              📎 Comprovante {index + 1}
-                            </button>
-                          ));
-                        }
-                      } catch (e) {
-                        // Não é JSON, é comprovante único
-                      }
-                      // Comprovante único
-                      return (
-                        <button
-                          onClick={() => handleViewProof(ticket)}
-                          className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm"
-                        >
-                          📎 Ver Comprovante
-                        </button>
-                      );
-                    })()}
+                    {ticket.has_proof ? (
+                      <button
+                        onClick={() => handleViewProof(ticket)}
+                        className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm"
+                      >
+                        📎 Ver Comprovante
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 text-sm">Sem comprovante</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -241,28 +267,7 @@ const PaymentTickets = ({ supabase, currentUser, isAdmin = false }) => {
             </div>
             
             <div className="text-center">
-              {selectedTicket.singleProof ? (
-                // Exibir comprovante individual
-                <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
-                  <div className="mb-3 text-left">
-                    <p className="text-sm text-gray-600">
-                      <strong>Valor:</strong> R$ {selectedTicket.singleProof.amount?.toFixed(2)}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      <strong>Método:</strong> {selectedTicket.singleProof.method}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      <strong>Data:</strong> {new Date(selectedTicket.singleProof.date).toLocaleString('pt-BR')}
-                    </p>
-                  </div>
-                  <img
-                    src={selectedTicket.singleProof.image}
-                    alt={`Comprovante ${selectedTicket.proofIndex}`}
-                    className="max-w-full max-h-96 mx-auto border border-gray-200 rounded"
-                  />
-                </div>
-              ) : selectedTicket.proof_image_base64 ? (
-                // Comprovante único (não múltiplo)
+              {selectedTicket.proof_image_base64 ? (
                 <img
                   src={selectedTicket.proof_image_base64}
                   alt="Comprovante"
@@ -270,8 +275,8 @@ const PaymentTickets = ({ supabase, currentUser, isAdmin = false }) => {
                 />
               ) : (
                 <div className="py-12">
-                  <div className="text-6xl mb-4">📄</div>
-                  <p className="text-gray-600">Comprovante não disponível</p>
+                  <div className="text-6xl mb-4">⏳</div>
+                  <p className="text-gray-600">Carregando comprovante...</p>
                 </div>
               )}
             </div>
