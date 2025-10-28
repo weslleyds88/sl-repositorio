@@ -22,6 +22,8 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    storageKey: 'sao-luiz-auth', // Chave única para evitar conflitos
+    detectSessionInUrl: true,
   },
   global: {
     headers: {
