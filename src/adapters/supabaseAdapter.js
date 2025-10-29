@@ -113,7 +113,12 @@ class SupabaseAdapter {
     try {
       let query = this.supabase
         .from('payments')
-        .select('*');
+        .select(`
+          *,
+          user_groups (
+            name
+          )
+        `);
 
       if (filters.member_id) {
         query = query.eq('member_id', filters.member_id);
@@ -140,7 +145,14 @@ class SupabaseAdapter {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data || [];
+      
+      // Transformar dados para incluir groupName diretamente no objeto
+      const paymentsWithGroupName = (data || []).map(payment => ({
+        ...payment,
+        groupName: payment.user_groups?.name || null
+      }));
+
+      return paymentsWithGroupName;
     } catch (error) {
       console.error('Erro ao listar pagamentos:', error);
       return [];

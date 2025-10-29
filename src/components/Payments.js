@@ -994,44 +994,45 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                 {sortedAndFilteredPayments.map((payment) => (
                   <tr key={payment.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <span className={payment.status === 'expense' ? 'text-red-600' : 'text-green-600 font-medium'}>
-                        {payment.isGroupPayment ? (
-                          <div className="flex flex-col">
-                            <div className="flex items-center">
-                              <span className="text-green-600 font-bold">
-                                {formatCurrency(payment.paidAmount)}
-                              </span>
-                              <span className="text-gray-400 mx-1">/</span>
-                              <span className="text-gray-600">
-                                {formatCurrency(payment.displayAmount)}
-                              </span>
-                              <span className="text-xs text-blue-600 ml-2">
-                                ({payment.groupMemberCount} atletas)
-                              </span>
+                      {payment.isGroupPayment ? (
+                        /* ADMIN: Visão de Grupo Consolidado */
+                        <div className="flex flex-col">
+                          <div className="flex items-center">
+                            <span className="text-green-600 font-bold">
+                              {formatCurrency(payment.paidAmount)}
+                            </span>
+                            <span className="text-gray-400 mx-1">/</span>
+                            <span className="text-gray-600">
+                              {formatCurrency(payment.displayAmount)}
+                            </span>
+                            <span className="text-xs text-blue-600 ml-2">
+                              ({payment.groupMemberCount} atletas)
+                            </span>
+                          </div>
+                          <div className="mt-1">
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div
+                                className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                                style={{
+                                  width: `${payment.displayAmount > 0 ? (payment.paidAmount / payment.displayAmount) * 100 : 0}%`
+                                }}
+                              ></div>
                             </div>
-                            <div className="mt-1">
-                              <div className="w-full bg-gray-200 rounded-full h-2">
-                                <div
-                                  className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                                  style={{
-                                    width: `${payment.displayAmount > 0 ? (payment.paidAmount / payment.displayAmount) * 100 : 0}%`
-                                  }}
-                                ></div>
-                              </div>
-                              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>
-                                  {payment.groupPayments.filter(p => p.status === 'paid').length} pago(s)
-                                  {payment.groupPayments.filter(p => p.status === 'pending' && p.paid_amount && parseFloat(p.paid_amount) > 0).length > 0 && (
-                                    <span className="text-yellow-600"> + {payment.groupPayments.filter(p => p.status === 'pending' && p.paid_amount && parseFloat(p.paid_amount) > 0).length} parcial(is)</span>
-                                  )}
-                                </span>
-                                <span>{payment.pendingAmount > 0 ? formatCurrency(payment.pendingAmount) + ' pendente' : 'Completo'}</span>
-                              </div>
+                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                              <span>
+                                {payment.groupPayments.filter(p => p.status === 'paid').length} pago(s)
+                                {payment.groupPayments.filter(p => p.status === 'pending' && p.paid_amount && parseFloat(p.paid_amount) > 0).length > 0 && (
+                                  <span className="text-yellow-600"> + {payment.groupPayments.filter(p => p.status === 'pending' && p.paid_amount && parseFloat(p.paid_amount) > 0).length} parcial(is)</span>
+                                )}
+                              </span>
+                              <span>{payment.pendingAmount > 0 ? formatCurrency(payment.pendingAmount) + ' pendente' : 'Completo'}</span>
                             </div>
                           </div>
-                        ) : !isAdmin && payment.status === 'pending' && payment.paid_amount && parseFloat(payment.paid_amount) > 0 ? (
-                          /* Mostrar barra de progresso para atletas em pagamentos parciais */
-                          <div className="flex flex-col">
+                        </div>
+                      ) : !isAdmin && payment.status === 'pending' && payment.paid_amount && parseFloat(payment.paid_amount) > 0 ? (
+                        /* ATLETA: Pagamento Parcial com Progresso */
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2">
                             <div className="flex items-center">
                               <span className="text-green-600 font-bold">
                                 {formatCurrency(parseFloat(payment.paid_amount))}
@@ -1041,25 +1042,42 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                                 {formatCurrency(parseFloat(payment.amount))}
                               </span>
                             </div>
-                            <div className="mt-1">
-                              <div className="w-full bg-gray-200 rounded-full h-2">
-                                <div
-                                  className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full transition-all duration-300"
-                                  style={{
-                                    width: `${(parseFloat(payment.paid_amount) / parseFloat(payment.amount)) * 100}%`
-                                  }}
-                                ></div>
-                              </div>
-                              <div className="flex justify-between text-xs mt-1">
-                                <span className="text-green-600">✓ Pago</span>
-                                <span className="text-red-600">Falta: {formatCurrency(parseFloat(payment.amount) - parseFloat(payment.paid_amount))}</span>
-                              </div>
+                            {/* NOME DO GRUPO/CAMPEONATO - Ao lado do valor */}
+                            {payment.groupName && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                🏐 {payment.groupName}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1">
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div
+                                className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full transition-all duration-300"
+                                style={{
+                                  width: `${(parseFloat(payment.paid_amount) / parseFloat(payment.amount)) * 100}%`
+                                }}
+                              ></div>
+                            </div>
+                            <div className="flex justify-between text-xs mt-1">
+                              <span className="text-green-600">✓ Pago</span>
+                              <span className="text-red-600">Falta: {formatCurrency(parseFloat(payment.amount) - parseFloat(payment.paid_amount))}</span>
                             </div>
                           </div>
-                        ) : (
-                          formatCurrency(payment.displayAmount)
-                        )}
-                      </span>
+                        </div>
+                      ) : (
+                        /* ATLETA: Pagamento Normal (Pendente ou Pago) */
+                        <div className="flex items-center gap-2">
+                          <span className={payment.status === 'expense' ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>
+                            {formatCurrency(payment.displayAmount)}
+                          </span>
+                          {/* NOME DO GRUPO/CAMPEONATO - Ao lado do valor */}
+                          {!isAdmin && payment.groupName && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              🏐 {payment.groupName}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {payment.isGroupPayment ? (
