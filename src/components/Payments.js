@@ -199,8 +199,8 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
             paidAmount: paidAmount,
             pendingAmount: pendingAmount,
             paidCount: allGroupPayments.filter(p => p.status === 'paid').length,
-            partialCount: allGroupPayments.filter(p => p.status === 'partial').length,
-            pendingCount: allGroupPayments.filter(p => p.status === 'pending').length,
+            partialCount: allGroupPayments.filter(p => p.status === 'pending' && p.paid_amount && parseFloat(p.paid_amount) > 0).length,
+            pendingCount: allGroupPayments.filter(p => p.status === 'pending' && (!p.paid_amount || parseFloat(p.paid_amount) === 0)).length,
             groupPaymentsCount: allGroupPayments.length,
             status: payment.status,
             isFirstPayment: payment.id === firstPayment.id,
@@ -837,7 +837,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
       </div>
 
       {/* Botão de ação para Atletas */}
-      {!isAdmin && filteredPayments.filter(p => p.status === 'pending' || p.status === 'partial').length > 0 && (
+      {!isAdmin && filteredPayments.filter(p => p.status !== 'paid').length > 0 && (
         <div className="mb-6">
           <button
             onClick={() => setShowSelectPaymentModal(true)}
@@ -849,7 +849,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
             <span>💳 Cadastrar Pagamento</span>
           </button>
           <p className="text-sm text-gray-500 text-center mt-2">
-            Você tem {filteredPayments.filter(p => p.status === 'pending' || p.status === 'partial').length} pagamento(s) pendente(s)
+            Você tem {filteredPayments.filter(p => p.status !== 'paid').length} pagamento(s) pendente(s)
           </p>
         </div>
       )}
@@ -1021,15 +1021,15 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                               <div className="flex justify-between text-xs text-gray-500 mt-1">
                                 <span>
                                   {payment.groupPayments.filter(p => p.status === 'paid').length} pago(s)
-                                  {payment.groupPayments.filter(p => p.status === 'partial').length > 0 && (
-                                    <span className="text-yellow-600"> + {payment.groupPayments.filter(p => p.status === 'partial').length} parcial(is)</span>
+                                  {payment.groupPayments.filter(p => p.status === 'pending' && p.paid_amount && parseFloat(p.paid_amount) > 0).length > 0 && (
+                                    <span className="text-yellow-600"> + {payment.groupPayments.filter(p => p.status === 'pending' && p.paid_amount && parseFloat(p.paid_amount) > 0).length} parcial(is)</span>
                                   )}
                                 </span>
                                 <span>{payment.pendingAmount > 0 ? formatCurrency(payment.pendingAmount) + ' pendente' : 'Completo'}</span>
                               </div>
                             </div>
                           </div>
-                        ) : !isAdmin && payment.status === 'partial' && payment.paid_amount && parseFloat(payment.paid_amount) > 0 ? (
+                        ) : !isAdmin && payment.status === 'pending' && payment.paid_amount && parseFloat(payment.paid_amount) > 0 ? (
                           /* Mostrar barra de progresso para atletas em pagamentos parciais */
                           <div className="flex flex-col">
                             <div className="flex items-center">
@@ -1099,12 +1099,12 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
-                        {/* Botão de anexar comprovante - APENAS para atletas (não admins) e pagamentos pendentes/parciais */}
-                        {(payment.status === 'pending' || payment.status === 'partial') && !isAdmin && currentUser?.role !== 'admin' && (
+                        {/* Botão de anexar comprovante - APENAS para atletas (não admins) e pagamentos pendentes */}
+                        {payment.status === 'pending' && !isAdmin && currentUser?.role !== 'admin' && (
                           <button
                             onClick={() => handleUploadProof(payment)}
                             className="text-blue-600 hover:text-blue-900"
-                            title={payment.status === 'partial' ? 'Anexar comprovante do restante' : 'Anexar comprovante'}
+                            title={payment.paid_amount && parseFloat(payment.paid_amount) > 0 ? 'Anexar comprovante do restante' : 'Anexar comprovante'}
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -1223,7 +1223,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Pendentes</p>
                 <p className="text-2xl font-bold text-yellow-600">
-                  {filteredPayments.filter(p => p.status === 'pending' || p.status === 'partial').length}
+                  {filteredPayments.filter(p => p.status === 'pending').length}
                 </p>
               </div>
             </div>
@@ -1242,12 +1242,13 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                   {formatCurrency(
                     filteredPayments.reduce((sum, p) => {
                       if (p.status === 'pending') {
-                        // Pagamento totalmente pendente, somar valor completo
+                        // Se tem paid_amount, somar apenas o que FALTA pagar
+                        if (p.paid_amount && parseFloat(p.paid_amount) > 0) {
+                          const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
+                          return sum + remaining;
+                        }
+                        // Senão, somar valor completo (totalmente pendente)
                         return sum + parseFloat(p.amount || 0);
-                      } else if (p.status === 'partial' && p.paid_amount) {
-                        // Pagamento parcial, somar apenas o que FALTA pagar
-                        const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
-                        return sum + remaining;
                       }
                       return sum;
                     }, 0)
@@ -1488,8 +1489,8 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                 if (p.status === 'paid') {
                   // Se está pago, somar o valor completo
                   return sum + parseFloat(p.amount || 0);
-                } else if (p.status === 'partial' && p.paid_amount) {
-                  // Se está parcial, somar apenas o valor já pago
+                } else if (p.paid_amount && parseFloat(p.paid_amount) > 0) {
+                  // Se tem paid_amount (parcial), somar apenas o valor já pago
                   return sum + parseFloat(p.paid_amount || 0);
                 }
                 return sum;
@@ -1581,7 +1582,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                         const categoryPaid = categoryPayments.reduce((sum, p) => {
                           if (p.status === 'paid') {
                             return sum + parseFloat(p.amount || 0);
-                          } else if (p.status === 'partial' && p.paid_amount) {
+                          } else if (p.paid_amount && parseFloat(p.paid_amount) > 0) {
                             return sum + parseFloat(p.paid_amount || 0);
                           }
                           return sum;
