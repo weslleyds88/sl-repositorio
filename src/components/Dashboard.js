@@ -95,11 +95,12 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
           if (p.status === 'paid') {
             // Pagamento completo, somar valor total
             return sum + parseFloat(p.amount || 0);
-          } else if (p.status === 'partial' && p.paid_amount) {
-            // Pagamento parcial, somar apenas o que já foi pago
+          } else if (p.paid_amount && parseFloat(p.paid_amount) > 0) {
+            // Pagamento parcial (status 'pending' mas com paid_amount > 0)
+            // Somar apenas o que já foi pago
             return sum + parseFloat(p.paid_amount || 0);
           }
-          // Pendentes não entram na receita
+          // Pendentes SEM pagamento não entram na receita
           return sum;
         }, 0);
 
@@ -117,30 +118,30 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
 
       // Calcular VALOR pendente de atletas (não apenas quantidade)
       const pendingAthleteValue = monthPayments
-        .filter(p => p.member_id)
+        .filter(p => p.member_id && p.status === 'pending')
         .reduce((sum, p) => {
-          if (p.status === 'pending') {
-            // Pagamento totalmente pendente, somar valor completo
-            return sum + parseFloat(p.amount || 0);
-          } else if (p.status === 'partial' && p.paid_amount) {
-            // Pagamento parcial, somar apenas o que FALTA pagar
+          if (p.paid_amount && parseFloat(p.paid_amount) > 0) {
+            // Pagamento parcial (tem paid_amount), somar apenas o que FALTA pagar
             const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
             return sum + remaining;
+          } else {
+            // Pagamento totalmente pendente, somar valor completo
+            return sum + parseFloat(p.amount || 0);
           }
-          return sum;
         }, 0);
 
       // Calcular VALOR pendente de despesas
       const pendingExpensesValue = expenses
-        .filter(p => p.status === 'expense' || p.status === 'partial')
+        .filter(p => p.status === 'expense' || (p.status === 'pending' && !p.member_id))
         .reduce((sum, p) => {
-          if (p.status === 'expense') {
-            return sum + parseFloat(p.amount || 0);
-          } else if (p.status === 'partial' && p.paid_amount) {
+          if (p.paid_amount && parseFloat(p.paid_amount) > 0) {
+            // Despesa parcialmente paga, somar apenas o que FALTA
             const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
             return sum + remaining;
+          } else {
+            // Despesa totalmente pendente
+            return sum + parseFloat(p.amount || 0);
           }
-          return sum;
         }, 0);
 
       // Total de VALOR pendente = atletas + despesas
