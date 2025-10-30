@@ -1,30 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { formatCurrency, getPreviousMonth, getNextMonth } from '../utils/dateUtils';
+import { formatCurrency } from '../utils/dateUtils';
 import ExportButtons from './ExportButtons';
 import Notifications from './Notifications';
-
-// Função auxiliar para formatar nome do mês
 
 const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefresh, isAdmin, supabase, currentUser }) => {
   // Estados para filtros independentes de mês e ano
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   
-  // Função auxiliar para formatar nome do mês
-  const formatMonthName = (monthString) => {
-    if (!monthString) return 'Mês inválido';
-
-    const [year, month] = monthString.split('-');
-    const monthIndex = parseInt(month) - 1; // Converter para 0-11
-
-    const months = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-    ];
-
-    return `${months[monthIndex]} ${year}`;
-  };
+  // (formatMonthName) removida por não estar em uso
   
   // Função para gerar o texto do período selecionado
   const getPeriodLabel = () => {
