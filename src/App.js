@@ -19,7 +19,14 @@ import { scheduleCleanupProofs } from './utils/cleanupProofs';
 
 function AppContent() {
   const { isAuthenticated, isAdmin, currentUser, login, logout, loading } = useAuth();
-  const [db] = useState(() => createAdapter(process.env.REACT_APP_DB_MODE || 'local'));
+  const dbMode = process.env.REACT_APP_DB_MODE || 'local';
+  const [db] = useState(() => {
+    console.log('🗄️ Modo de banco de dados:', dbMode);
+    if (dbMode === 'local') {
+      console.warn('⚠️ Usando modo LOCAL. Configure REACT_APP_DB_MODE=supabase no Cloudflare Pages!');
+    }
+    return createAdapter(dbMode);
+  });
   const [members, setMembers] = useState([]);
   const [payments, setPayments] = useState([]);
   const [currentMonth, setCurrentMonth] = useState(getCurrentMonth());
