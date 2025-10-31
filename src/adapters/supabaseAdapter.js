@@ -1,16 +1,10 @@
 // Adapter para Supabase
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabaseClient';
 
 class SupabaseAdapter {
   constructor() {
-    const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-    const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Configurações do Supabase não encontradas. Verifique as variáveis de ambiente.');
-    }
-    
-    this.supabase = createClient(supabaseUrl, supabaseAnonKey);
+    // Usar a mesma instância do supabaseClient para evitar múltiplas instâncias
+    this.supabase = supabase;
   }
 
   // MEMBERS
