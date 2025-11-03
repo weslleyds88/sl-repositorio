@@ -30,6 +30,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
   // Estados para filtros da Lista de Pagamentos
   const [listMonth, setListMonth] = useState('all'); // 'all' ou '0' a '11'
   const [listYear, setListYear] = useState('all'); // 'all' ou '2024', '2025', etc.
+  const [listStatus, setListStatus] = useState('all'); // 'all', 'paid', 'pending'
 
   const categories = [
     'Mensalidade',
@@ -131,18 +132,27 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
     group_name: m.group_name
   })));
 
-  // Aplicar filtros de mês e ano na lista de pagamentos
+  // Aplicar filtros na lista de pagamentos
   const listFilteredPayments = filteredPayments.filter(p => {
-    // Filtrar por mês
-    if (listMonth !== 'all' && p.due_date) {
-      const paymentMonth = new Date(p.due_date).getMonth();
-      if (paymentMonth !== parseInt(listMonth)) return false;
+    // Filtro de status (sempre aplicado)
+    if (listStatus !== 'all') {
+      if (listStatus === 'paid' && p.status !== 'paid') return false;
+      if (listStatus === 'pending' && p.status === 'paid') return false;
     }
     
-    // Filtrar por ano
-    if (listYear !== 'all' && p.due_date) {
-      const paymentYear = new Date(p.due_date).getFullYear().toString();
-      if (paymentYear !== listYear) return false;
+    // Filtros de mês e ano (apenas para admin)
+    if (isAdmin) {
+      // Filtrar por mês
+      if (listMonth !== 'all' && p.due_date) {
+        const paymentMonth = new Date(p.due_date).getMonth();
+        if (paymentMonth !== parseInt(listMonth)) return false;
+      }
+      
+      // Filtrar por ano
+      if (listYear !== 'all' && p.due_date) {
+        const paymentYear = new Date(p.due_date).getFullYear().toString();
+        if (paymentYear !== listYear) return false;
+      }
     }
     
     return true;
@@ -890,55 +900,74 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
             <div className="flex items-center gap-4">
               <span className="text-sm font-medium text-gray-700">Filtrar por:</span>
               
-              {/* Filtro de Mês */}
+              {/* Filtro de Status - sempre visível */}
               <select
-                value={listMonth}
-                onChange={(e) => setListMonth(e.target.value)}
+                value={listStatus}
+                onChange={(e) => setListStatus(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               >
-                <option value="all">📅 Todos os meses</option>
-                <option value="0">Janeiro</option>
-                <option value="1">Fevereiro</option>
-                <option value="2">Março</option>
-                <option value="3">Abril</option>
-                <option value="4">Maio</option>
-                <option value="5">Junho</option>
-                <option value="6">Julho</option>
-                <option value="7">Agosto</option>
-                <option value="8">Setembro</option>
-                <option value="9">Outubro</option>
-                <option value="10">Novembro</option>
-                <option value="11">Dezembro</option>
+                <option value="all">Todos os status</option>
+                <option value="paid">Pago</option>
+                <option value="pending">Pendente</option>
               </select>
 
-              {/* Filtro de Ano */}
-              <select
-                value={listYear}
-                onChange={(e) => setListYear(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="all">📅 Todos os anos</option>
-                {(() => {
-                  // Gerar lista de anos disponíveis
-                  const years = new Set();
-                  payments.forEach(p => {
-                    if (p.due_date) {
-                      const year = new Date(p.due_date).getFullYear().toString();
-                      years.add(year);
-                    }
-                  });
-                  return Array.from(years).sort((a, b) => b.localeCompare(a)).map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ));
-                })()}
-              </select>
+              {/* Filtros de Mês e Ano - apenas para admin */}
+              {isAdmin && (
+                <>
+                  {/* Filtro de Mês */}
+                  <select
+                    value={listMonth}
+                    onChange={(e) => setListMonth(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="all">📅 Todos os meses</option>
+                    <option value="0">Janeiro</option>
+                    <option value="1">Fevereiro</option>
+                    <option value="2">Março</option>
+                    <option value="3">Abril</option>
+                    <option value="4">Maio</option>
+                    <option value="5">Junho</option>
+                    <option value="6">Julho</option>
+                    <option value="7">Agosto</option>
+                    <option value="8">Setembro</option>
+                    <option value="9">Outubro</option>
+                    <option value="10">Novembro</option>
+                    <option value="11">Dezembro</option>
+                  </select>
+
+                  {/* Filtro de Ano */}
+                  <select
+                    value={listYear}
+                    onChange={(e) => setListYear(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="all">📅 Todos os anos</option>
+                    {(() => {
+                      // Gerar lista de anos disponíveis
+                      const years = new Set();
+                      payments.forEach(p => {
+                        if (p.due_date) {
+                          const year = new Date(p.due_date).getFullYear().toString();
+                          years.add(year);
+                        }
+                      });
+                      return Array.from(years).sort((a, b) => b.localeCompare(a)).map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ));
+                    })()}
+                  </select>
+                </>
+              )}
 
               {/* Botão Limpar Filtros */}
-              {(listMonth !== 'all' || listYear !== 'all') && (
+              {(listStatus !== 'all' || (isAdmin && (listMonth !== 'all' || listYear !== 'all'))) && (
                 <button
                   onClick={() => {
-                    setListMonth('all');
-                    setListYear('all');
+                    setListStatus('all');
+                    if (isAdmin) {
+                      setListMonth('all');
+                      setListYear('all');
+                    }
                   }}
                   className="text-blue-600 hover:text-blue-800 text-sm font-medium ml-2"
                 >
@@ -948,16 +977,17 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
             </div>
 
             {/* Indicador de Filtros Ativos */}
-            {(listMonth !== 'all' || listYear !== 'all') && (
+            {(listStatus !== 'all' || (isAdmin && (listMonth !== 'all' || listYear !== 'all'))) && (
               <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded flex items-center gap-2 text-sm">
                 <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                 </svg>
                 <span className="text-blue-800">
                   Mostrando: 
-                  {listMonth !== 'all' && <span className="font-medium"> {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][parseInt(listMonth)]}</span>}
-                  {listMonth !== 'all' && listYear !== 'all' && ' de'}
-                  {listYear !== 'all' && <span className="font-medium"> {listYear}</span>}
+                  {listStatus !== 'all' && <span className="font-medium"> {listStatus === 'paid' ? 'Pago' : 'Pendente'}</span>}
+                  {isAdmin && listMonth !== 'all' && <span className="font-medium"> {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][parseInt(listMonth)]}</span>}
+                  {isAdmin && listMonth !== 'all' && listYear !== 'all' && ' de'}
+                  {isAdmin && listYear !== 'all' && <span className="font-medium"> {listYear}</span>}
                 </span>
               </div>
             )}

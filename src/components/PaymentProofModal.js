@@ -22,7 +22,7 @@ const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
   const [proofFile, setProofFile] = useState(null);
   const [proofAmount, setProofAmount] = useState(remainingAmount > 0 ? remainingAmount.toString() : totalAmount.toString() || '');
   const [paymentMethod, setPaymentMethod] = useState('pix');
-  const [transactionId, setTransactionId] = useState('');
+  const [observation, setObservation] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -151,7 +151,7 @@ const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
             storage_method: 'database',
             proof_amount: distributedAmounts[index], // ✅ Valor PROPORCIONAL ao que foi pago!
             payment_method: paymentMethod,
-            transaction_id: transactionId.trim() || null,
+            observation: observation.trim() || null,
             status: 'pending',
             // Adicionar metadados para identificar pagamento múltiplo
             multiple_payment_ids: payment.payments.map(p => p.id).join(',')
@@ -181,7 +181,7 @@ const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
             storage_method: 'database',
             proof_amount: parseFloat(proofAmount),
             payment_method: paymentMethod,
-            transaction_id: transactionId.trim() || null,
+            observation: observation.trim() || null,
             status: 'pending'
           });
 
@@ -367,18 +367,22 @@ const PaymentProofModal = ({ payment, onClose, supabase, currentUser }) => {
             </select>
           </div>
 
-          {/* ID da Transação (opcional) */}
+          {/* Observação (opcional) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              ID da Transação (opcional)
+              Observação (opcional)
             </label>
-            <input
-              type="text"
-              value={transactionId}
-              onChange={(e) => setTransactionId(e.target.value)}
+            <textarea
+              value={observation}
+              onChange={(e) => setObservation(e.target.value)}
+              rows={3}
+              maxLength={500}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Ex: PIX123456789"
+              placeholder="Adicione uma observação sobre este pagamento (opcional)"
             />
+            <p className="text-xs text-gray-500 mt-1">
+              {observation.length}/500 caracteres
+            </p>
           </div>
 
           {/* Erro */}

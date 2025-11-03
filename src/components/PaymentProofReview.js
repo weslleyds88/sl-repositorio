@@ -50,6 +50,7 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
         group_name: groupName, // Nome do grupo
         payment_status: isFullyPaid ? 'Completo' : 'Parcial', // Status do pagamento
         payment_method: proofData.payment_method,
+        observation: proofData.observation || null, // Observação do atleta
         proof_image_base64: proofData.proof_image_base64, // 1 comprovante por ticket
         approved_by: adminUserId,
         approved_at: new Date().toISOString(),
@@ -106,7 +107,7 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
       // Carregar apenas metadados, SEM as imagens pesadas
       const { data, error } = await supabase
         .from('payment_proofs')
-        .select('id, payment_id, user_id, proof_amount, payment_method, transaction_id, status, submitted_at, storage_method, profiles:user_id(id, full_name, email)')
+        .select('id, payment_id, user_id, proof_amount, payment_method, observation, status, submitted_at, storage_method, profiles:user_id(id, full_name, email)')
         .eq('status', 'pending')
         .order('submitted_at', { ascending: false });
 
@@ -307,11 +308,11 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
             }
 
             if (adminUserId) {
-              // BUSCAR IMAGEM DO COMPROVANTE antes de criar ticket (otimização lazy loading)
-              console.log('📸 Buscando imagem do comprovante para o ticket...');
+              // BUSCAR IMAGEM E OBSERVAÇÃO DO COMPROVANTE antes de criar ticket (otimização lazy loading)
+              console.log('📸 Buscando imagem e observação do comprovante para o ticket...');
               const { data: proofWithImage, error: imageError } = await supabase
                 .from('payment_proofs')
-                .select('proof_image_base64')
+                .select('proof_image_base64, observation')
                 .eq('id', proofId)
                 .single();
 
@@ -319,10 +320,11 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
                 console.warn('⚠️ Erro ao buscar imagem do comprovante:', imageError);
               }
 
-              // Mesclar dados do comprovante com a imagem
+              // Mesclar dados do comprovante com a imagem e observação
               const completeProofData = {
                 ...currentProof,
-                proof_image_base64: proofWithImage?.proof_image_base64 || null
+                proof_image_base64: proofWithImage?.proof_image_base64 || null,
+                observation: proofWithImage?.observation || null
               };
 
               // Criar ticket individual para este pagamento específico
@@ -613,10 +615,11 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
                         <p className="text-sm text-gray-600">
                           <strong>Método:</strong> {proof.payment_method}
                         </p>
-                        {proof.transaction_id && (
-                          <p className="text-sm text-gray-600">
-                            <strong>ID Transação:</strong> {proof.transaction_id}
-                          </p>
+                        {proof.observation && (
+                          <div className="mt-2 p-2 bg-gray-50 rounded border border-gray-200">
+                            <p className="text-xs font-medium text-gray-700 mb-1">Observação do Atleta:</p>
+                            <p className="text-sm text-gray-600 whitespace-pre-wrap">{proof.observation}</p>
+                          </div>
                         )}
                         <p className="text-sm text-gray-600">
                           <strong>Enviado em:</strong> {new Date(proof.submitted_at).toLocaleString('pt-BR')}
