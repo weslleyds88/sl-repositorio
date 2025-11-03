@@ -117,16 +117,53 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
 
       console.log('📋 Comprovantes (metadados) carregados:', data?.length || 0);
 
-      // Adicionar flag de "precisa carregar imagem"
-      const processedProofs = (data || []).map(proof => ({
-        ...proof,
-        imageUrl: null,  // Será carregada sob demanda
-        hasValidImage: true,  // Assumir que tem (carregar depois)
-        imageLoaded: false
-      }));
+      // Enriquecer com informações de grupo (campeonato)
+      const proofsList = data || [];
+
+      // Buscar pagamentos relacionados em lote
+      const paymentIds = proofsList.map(p => p.payment_id).filter(Boolean);
+      let paymentMap = new Map();
+      let groupNameMap = new Map();
+
+      if (paymentIds.length > 0) {
+        const { data: paymentsData, error: paymentsError } = await supabase
+          .from('payments')
+          .select('id, group_id, category')
+          .in('id', paymentIds);
+
+        if (!paymentsError && Array.isArray(paymentsData)) {
+          paymentsData.forEach(p => paymentMap.set(p.id, p));
+
+          const groupIds = [...new Set(paymentsData.map(p => p.group_id).filter(Boolean))];
+          if (groupIds.length > 0) {
+            const { data: groupsData, error: groupsError } = await supabase
+              .from('user_groups')
+              .select('id, name')
+              .in('id', groupIds);
+
+            if (!groupsError && Array.isArray(groupsData)) {
+              groupsData.forEach(g => groupNameMap.set(g.id, g.name));
+            }
+          }
+        }
+      }
+
+      // Adicionar flag de imagem + nome do grupo
+      const processedProofs = proofsList.map(proof => {
+        const paymentInfo = paymentMap.get(proof.payment_id);
+        const groupName = paymentInfo?.group_id ? groupNameMap.get(paymentInfo.group_id) : null;
+        return {
+          ...proof,
+          imageUrl: null,         // Será carregada sob demanda
+          hasValidImage: true,    // Assumir que tem (carregar depois)
+          imageLoaded: false,
+          groupName: groupName || null,
+          paymentCategory: paymentInfo?.category || null
+        };
+      });
 
       setProofs(processedProofs);
-      console.log('✅ Comprovantes processados (sem imagens):', processedProofs.length);
+      console.log('✅ Comprovantes processados (com grupos):', processedProofs.length);
     } catch (error) {
       console.error('❌ Erro ao carregar comprovantes:', error);
       setProofs([]);
@@ -558,6 +595,18 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
                         <p className="text-sm text-gray-600">
                           <strong>Pagamento ID:</strong> {proof.payment_id}
                         </p>
+                        {(proof.groupName || proof.paymentCategory) && (
+                          <p className="text-sm text-gray-600 mt-1">
+                            <strong>Grupo/Campeonato:</strong>{' '}
+                            {proof.groupName ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 ml-1">
+                                🏐 {proof.groupName}
+                              </span>
+                            ) : (
+                              <span className="ml-1 text-gray-700">{proof.paymentCategory}</span>
+                            )}
+                          </p>
+                        )}
                         <p className="text-sm text-gray-600">
                           <strong>Valor:</strong> R$ {proof.proof_amount?.toFixed(2)}
                         </p>
