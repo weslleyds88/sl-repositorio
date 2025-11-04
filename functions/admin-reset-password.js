@@ -45,6 +45,8 @@ export async function onRequestPost(context) {
     
     // Verificar se o token é válido e se o usuário é admin
     const verifyUrl = `${supabaseUrl}/auth/v1/user`;
+    console.log('Fazendo requisição para:', verifyUrl);
+    
     const verifyResp = await fetch(verifyUrl, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -52,9 +54,14 @@ export async function onRequestPost(context) {
       }
     });
 
+    console.log('Status da verificação:', verifyResp.status);
+    console.log('Headers da verificação:', Object.fromEntries(verifyResp.headers));
+
     if (!verifyResp.ok) {
+      const errorText = await verifyResp.text();
+      console.error('Erro na verificação:', errorText);
       return new Response(
-        JSON.stringify({ error: 'Token inválido' }),
+        JSON.stringify({ error: 'Token inválido', detail: errorText }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -62,7 +69,9 @@ export async function onRequestPost(context) {
     let userData;
     try {
       userData = await verifyResp.json();
+      console.log('Resposta completa da verificação:', JSON.stringify(userData, null, 2));
     } catch (e) {
+      console.error('Erro ao parsear JSON:', e);
       return new Response(
         JSON.stringify({ 
           error: 'Erro ao processar resposta da API',
@@ -72,40 +81,55 @@ export async function onRequestPost(context) {
       );
     }
     
-    // CORREÇÃO: Verificar a estrutura da resposta corretamente
-    console.log('Resposta completa da verificação:', JSON.stringify(userData, null, 2));
+    // CORREÇÃO: Verificação mais robusta da estrutura da resposta
+    let userId = null;
 
-    let userId;
+    // Verificar diferentes estruturas possíveis da resposta
+    if (userData && typeof userData === 'object') {
+      // Estrutura 1: { user: { id: ... } }
+      if (userData.user && userData.user.id) {
+        userId = userData.user.id;
+        console.log('ID encontrado em userData.user.id:', userId);
+      } 
+      // Estrutura 2: { id: ... } (diretamente)
+      else if (userData.id) {
+        userId = userData.id;
+        console.log('ID encontrado em userData.id:', userId);
+      }
+      // Estrutura 3: Verificar se há alguma propriedade que contenha o ID
+      else {
+        // Procurar por qualquer propriedade que possa conter o ID
+        for (const key in userData) {
+          if (userData[key] && typeof userData[key] === 'object' && userData[key].id) {
+            userId = userData[key].id;
+            console.log(`ID encontrado em userData.${key}.id:`, userId);
+            break;
+          }
+        }
+      }
+    }
 
-    if (userData && userData.user && userData.user.id) {
-      // Nova estrutura: { user: { id: ... } }
-      userId = userData.user.id;
-      console.log('ID do usuário encontrado em userData.user.id:', userId);
-    } else if (userData && userData.id) {
-      // Estrutura alternativa: { id: ... }
-      userId = userData.id;
-      console.log('ID do usuário encontrado em userData.id:', userId);
-    } else {
-      // Estrutura desconhecida
-      console.log('Estrutura desconhecida da resposta:', userData);
+    // Se ainda não encontrou o ID, retornar erro detalhado
+    if (!userId) {
       return new Response(
         JSON.stringify({ 
           error: 'Erro ao obter ID do usuário',
           detail: 'Resposta da API não contém ID do usuário na estrutura esperada',
           debug: { 
             userData: userData,
-            keys: userData ? Object.keys(userData) : 'userData é undefined',
-            hasUserObject: !!(userData && userData.user),
-            hasUserId: !!(userData && userData.user && userData.user.id),
-            hasDirectId: !!(userData && userData.id)
+            userDataType: typeof userData,
+            keys: userData ? Object.keys(userData) : 'userData é undefined/null',
+            fullResponse: userData
           }
         }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
     
-    // Verificar se é admin (restante do código permanece igual)
+    // Verificar se é admin
     const profileUrl = `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=role`;
+    console.log('Verificando perfil admin:', profileUrl);
+    
     const profileResp = await fetch(profileUrl, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -115,13 +139,17 @@ export async function onRequestPost(context) {
     });
 
     if (!profileResp.ok) {
+      const errorText = await profileResp.text();
+      console.error('Erro ao verificar perfil:', errorText);
       return new Response(
-        JSON.stringify({ error: 'Erro ao verificar perfil' }),
+        JSON.stringify({ error: 'Erro ao verificar perfil', detail: errorText }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
     const profileData = await profileResp.json();
+    console.log('Dados do perfil:', profileData);
+
     if (!profileData || profileData.length === 0 || profileData[0].role !== 'admin') {
       return new Response(
         JSON.stringify({ error: 'Apenas administradores podem resetar senhas' }),
@@ -131,6 +159,8 @@ export async function onRequestPost(context) {
 
     // Obter dados da requisição
     const body = await request.json();
+    console.log('Corpo da requisição:', body);
+    
     const { userId: targetUserId, newPassword } = body;
 
     if (!targetUserId) {
@@ -149,8 +179,12 @@ export async function onRequestPost(context) {
       ).join('');
     }
 
+    console.log('Resetando senha para userId:', targetUserId);
+
     // Buscar email do usuário no profiles
     const userProfileUrl = `${supabaseUrl}/rest/v1/profiles?id=eq.${targetUserId}&select=email`;
+    console.log('Buscando perfil do usuário:', userProfileUrl);
+    
     const userProfileResp = await fetch(userProfileUrl, {
       headers: {
         'Authorization': `Bearer ${serviceRoleKey}`,
@@ -160,13 +194,17 @@ export async function onRequestPost(context) {
     });
 
     if (!userProfileResp.ok) {
+      const errorText = await userProfileResp.text();
+      console.error('Erro ao buscar perfil do usuário:', errorText);
       return new Response(
-        JSON.stringify({ error: 'Erro ao buscar perfil do usuário' }),
+        JSON.stringify({ error: 'Erro ao buscar perfil do usuário', detail: errorText }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
     const userProfileData = await userProfileResp.json();
+    console.log('Perfil do usuário alvo:', userProfileData);
+
     if (!userProfileData || userProfileData.length === 0) {
       return new Response(
         JSON.stringify({ error: 'Usuário não encontrado' }),
@@ -175,9 +213,19 @@ export async function onRequestPost(context) {
     }
 
     const userEmail = userProfileData[0].email;
+    console.log('Email do usuário alvo:', userEmail);
+
+    if (!userEmail) {
+      return new Response(
+        JSON.stringify({ error: 'Email do usuário não encontrado' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Buscar usuário no auth.users pelo email
     const authUsersUrl = `${supabaseUrl}/auth/v1/admin/users?email=eq.${encodeURIComponent(userEmail)}`;
+    console.log('Buscando usuário no auth:', authUsersUrl);
+    
     const authUsersResp = await fetch(authUsersUrl, {
       headers: {
         'Authorization': `Bearer ${serviceRoleKey}`,
@@ -187,13 +235,17 @@ export async function onRequestPost(context) {
     });
 
     if (!authUsersResp.ok) {
+      const errorText = await authUsersResp.text();
+      console.error('Erro ao buscar usuário no auth:', errorText);
       return new Response(
-        JSON.stringify({ error: 'Erro ao buscar usuário no auth' }),
+        JSON.stringify({ error: 'Erro ao buscar usuário no auth', detail: errorText }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
     const authUsersData = await authUsersResp.json();
+    console.log('Dados do auth users:', authUsersData);
+
     if (!authUsersData || authUsersData.length === 0) {
       return new Response(
         JSON.stringify({ 
@@ -205,9 +257,12 @@ export async function onRequestPost(context) {
     }
 
     const authUserId = authUsersData[0].id;
+    console.log('Auth User ID:', authUserId);
 
     // Atualizar senha usando Admin API
     const updateUrl = `${supabaseUrl}/auth/v1/admin/users/${authUserId}`;
+    console.log('Atualizando senha em:', updateUrl);
+    
     const updateResp = await fetch(updateUrl, {
       method: 'PUT',
       headers: {
@@ -223,6 +278,7 @@ export async function onRequestPost(context) {
 
     if (!updateResp.ok) {
       const errorText = await updateResp.text().catch(() => 'Erro desconhecido');
+      console.error('Erro ao atualizar senha:', errorText);
       let errorData;
       try {
         errorData = JSON.parse(errorText);
@@ -238,6 +294,8 @@ export async function onRequestPost(context) {
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('Senha atualizada com sucesso');
 
     // Retornar sucesso com a senha gerada
     return new Response(
