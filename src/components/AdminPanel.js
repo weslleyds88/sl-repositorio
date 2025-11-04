@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import PaymentTickets from './PaymentTickets';
 import GroupMembers from './GroupMembers';
 
 function AdminPanel({ isAdmin, supabase }) {
   const [pendingUsers, setPendingUsers] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
   const [groups, setGroups] = useState([]);
-  const [usersLoaded, setUsersLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [editingGroup, setEditingGroup] = useState(null);
@@ -39,8 +36,7 @@ function AdminPanel({ isAdmin, supabase }) {
       console.log('📋 Dados dos pendentes:', pending);
       setPendingUsers(pending || []);
 
-      // NÃO carregar todos os usuários aqui para não travar a tela inicial.
-      // Eles serão carregados sob demanda quando a aba "users" for aberta.
+      // Lista completa de usuários agora está na página "Atletas".
 
       // Carregar grupos
       const { data: groupsData, error: groupsError } = await supabase
@@ -68,25 +64,7 @@ function AdminPanel({ isAdmin, supabase }) {
     loadData();
   }, [loadData]);
 
-  // Carregar "Todos os Usuários" sob demanda quando a aba for ativada
-  useEffect(() => {
-    const loadAllUsers = async () => {
-      try {
-        if (usersLoaded || activeTab !== 'users') return;
-        console.log('🔍 Carregando lista completa de usuários (lazy)...');
-        const { data: all, error: allError } = await supabase
-          .from('profiles')
-          .select('id, email, full_name, phone, position, role, status, account_status, avatar_url, created_at, updated_at')
-          .order('created_at', { ascending: false });
-        if (allError) throw allError;
-        setAllUsers(all || []);
-        setUsersLoaded(true);
-      } catch (e) {
-        console.error('Erro ao carregar todos os usuários:', e);
-      }
-    };
-    loadAllUsers();
-  }, [activeTab, usersLoaded, supabase]);
+  // Removido: carregamento da aba de usuários
 
   const handleCreateGroup = () => {
     setEditingGroup(null);
@@ -194,179 +172,7 @@ function AdminPanel({ isAdmin, supabase }) {
     }
   };
 
-  const handleChangeUserRole = async (userId, newRole) => {
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ role: newRole })
-        .eq('id', userId);
-
-      if (error) throw error;
-      loadData();
-
-    } catch (error) {
-      console.error('Erro ao alterar função:', error.message);
-    }
-  };
-
-  const handleToggleAccountStatus = async (userId, currentStatus, userName) => {
-    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
-    
-    const confirmMessage = newStatus === 'inactive' 
-      ? `⚠️ Desativar a conta de ${userName}?\n\nO usuário NÃO poderá fazer login, mas o histórico será preservado.`
-      : `✅ Reativar a conta de ${userName}?\n\nO usuário poderá fazer login normalmente.`;
-    
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ account_status: newStatus })
-        .eq('id', userId);
-
-      if (error) throw error;
-
-      alert(`✅ Conta ${newStatus === 'inactive' ? 'desativada' : 'reativada'} com sucesso!`);
-      loadData();
-    } catch (error) {
-      console.error('Erro ao alterar status da conta:', error);
-      alert('Erro ao alterar status da conta: ' + error.message);
-    }
-  };
-
-  const handleDeleteUser = async (userId, userName) => {
-    const confirmacao = window.prompt(
-      `🗑️ ATENÇÃO: Você está prestes a EXCLUIR PERMANENTEMENTE a conta de "${userName}"!\n\n` +
-      `⚠️ Isso irá:\n` +
-      `- Deletar o perfil do usuário\n` +
-      `- Remover todos os pagamentos associados\n` +
-      `- Excluir todos os comprovantes\n` +
-      `- Remover dos grupos\n` +
-      `- Deletar tickets\n\n` +
-      `❌ ESTA AÇÃO NÃO PODE SER DESFEITA!\n\n` +
-      `Digite exatamente "EXCLUIR" para confirmar:`
-    );
-    
-    if (confirmacao !== 'EXCLUIR') {
-      alert('❌ Exclusão cancelada.');
-      return;
-    }
-
-    try {
-      console.log('🗑️ Excluindo conta do usuário:', userId, userName);
-      
-      // 1. Deletar pagamentos associados
-      console.log('🗑️ Excluindo pagamentos do usuário...');
-      const { error: paymentsError } = await supabase
-        .from('payments')
-        .delete()
-        .eq('member_id', userId);
-      
-      if (paymentsError) {
-        console.error('⚠️ Erro ao deletar pagamentos:', paymentsError);
-      }
-
-      // 2. Deletar comprovantes de pagamento
-      console.log('🗑️ Excluindo comprovantes do usuário...');
-      const { error: proofsError } = await supabase
-        .from('payment_proofs')
-        .delete()
-        .eq('user_id', userId);
-      
-      if (proofsError) {
-        console.error('⚠️ Erro ao deletar comprovantes:', proofsError);
-      }
-
-      // 3. Deletar tickets
-      console.log('🗑️ Excluindo tickets do usuário...');
-      const { error: ticketsError } = await supabase
-        .from('payment_tickets')
-        .delete()
-        .eq('user_id', userId);
-      
-      if (ticketsError) {
-        console.error('⚠️ Erro ao deletar tickets:', ticketsError);
-      }
-
-      // 4. Remover do grupo (user_groups)
-      console.log('🗑️ Removendo usuário dos grupos...');
-      const { error: groupsError } = await supabase
-        .from('user_groups')
-        .delete()
-        .eq('user_id', userId);
-      
-      if (groupsError) {
-        console.error('⚠️ Erro ao remover dos grupos:', groupsError);
-      }
-
-      // 5. Deletar o perfil do banco de dados
-      console.log('🗑️ Excluindo perfil do banco de dados...');
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', userId);
-
-      if (profileError) throw profileError;
-
-      // Recarregar dados
-      loadData();
-
-      alert(`✅ Conta de "${userName}" foi EXCLUÍDA PERMANENTEMENTE!\n\nO usuário precisará se cadastrar novamente para ter acesso.`);
-      console.log('✅ Usuário e todos os dados relacionados foram excluídos com sucesso');
-    } catch (error) {
-      console.error('❌ Erro ao excluir usuário:', error);
-      alert('Erro ao excluir usuário: ' + error.message);
-    }
-  };
-
-  const handleResetPassword = async (userEmail, userName) => {
-    if (!window.confirm(`📧 Enviar email de reset de senha para ${userName}?\n\nEmail: ${userEmail}\n\nO usuário receberá um link para criar uma nova senha.`)) {
-      return;
-    }
-
-    try {
-      console.log('📧 Enviando email de reset para:', userEmail);
-      
-      // Usar o host e porta atuais da URL do navegador
-      // Isso pega o IP correto (192.168.15.60:3000) ao invés de localhost
-      const redirectUrl = `${window.location.protocol}//${window.location.host}/`;
-      
-      console.log('🔗 URL de redirecionamento:', redirectUrl);
-      console.log('   - Protocol:', window.location.protocol);
-      console.log('   - Host:', window.location.host);
-      console.log('   - Origin:', window.location.origin);
-      
-      // Redireciona para a URL base - o Supabase adiciona o hash com os tokens automaticamente
-      const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
-        redirectTo: redirectUrl,
-      });
-
-      if (error) throw error;
-
-      console.log('✅ Email enviado com sucesso');
-      alert(`✅ Email de reset de senha enviado para ${userEmail}!\n\n📧 Email: ${userEmail}\n🔗 Link redirecionará para: ${redirectUrl}\n\nO usuário receberá um link para criar uma nova senha.`);
-    } catch (error) {
-      console.error('❌ Erro ao resetar senha:', error);
-      
-      // Tratamento especial para erro de limite de email
-      if (error.message && error.message.includes('email rate limit exceeded')) {
-        alert(
-          '⚠️ LIMITE DE EMAILS ATINGIDO\n\n' +
-          '🚫 O Supabase bloqueou temporariamente o envio de emails.\n\n' +
-          '⏰ AGUARDE 10-15 MINUTOS e tente novamente.\n\n' +
-          '💡 DICA:\n' +
-          '- O plano gratuito do Supabase tem limite de emails por hora\n' +
-          '- Evite enviar múltiplos resets em sequência\n' +
-          '- Se o problema persistir, aguarde 1 hora\n\n' +
-          `📧 Email que tentou resetar: ${userEmail}`
-        );
-      } else {
-        alert('❌ Erro ao enviar email de reset: ' + error.message);
-      }
-    }
-  };
+  // Removidos: handlers de gestão de usuários (migrado para Atletas)
 
   const handleDeleteGroup = async (groupId) => {
     if (!window.confirm('Tem certeza que deseja excluir este grupo? Esta ação não pode ser desfeita.')) {
@@ -786,13 +592,7 @@ function AdminPanel({ isAdmin, supabase }) {
         />
       )}
 
-      {activeTab === 'tickets' && (
-        <PaymentTickets
-          supabase={supabase}
-          currentUser={null} // Admin vê todos os tickets
-          isAdmin={true}
-        />
-      )}
+      {/* Aba de tickets removida; os tickets possuem página própria */}
     </div>
   );
 }

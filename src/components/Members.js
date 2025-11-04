@@ -27,14 +27,7 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
     }
   });
 
-  const handleAddMember = () => {
-    if (!isAdmin) {
-      alert('Modo visualização: você não pode adicionar novos atletas.');
-      return;
-    }
-    setEditingMember(null);
-    setShowForm(true);
-  };
+  // Removido: criação manual pelo admin (cadastro vem pelo fluxo de registro)
 
   const handleEditMember = (member) => {
     if (!isAdmin) {
