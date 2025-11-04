@@ -231,6 +231,7 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
                                   return;
                                 }
                                 if (!window.confirm(`Gerar senha temporária para ${member.full_name}?`)) return;
+                                // Cloudflare Pages Function route
                                 const resp = await fetch('/admin-reset-password', {
                                   method: 'POST',
                                   headers: {
