@@ -117,9 +117,9 @@ export async function onRequestPost(context) {
 
     // Obter dados da requisição
     const body = await request.json();
-    const { userId, newPassword } = body;
+    const { userId: targetUserId, newPassword } = body;
 
-    if (!userId) {
+    if (!targetUserId) {
       return new Response(
         JSON.stringify({ error: 'userId é obrigatório' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -137,7 +137,7 @@ export async function onRequestPost(context) {
     }
 
     // Buscar email do usuário no profiles
-    const userProfileUrl = `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=email`;
+    const userProfileUrl = `${supabaseUrl}/rest/v1/profiles?id=eq.${targetUserId}&select=email`;
     const userProfileResp = await fetch(userProfileUrl, {
       headers: {
         'Authorization': `Bearer ${serviceRoleKey}`,
