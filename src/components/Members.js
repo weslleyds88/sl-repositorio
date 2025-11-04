@@ -293,16 +293,25 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
 
                                 console.log('Fazendo requisição para reset de senha...');
 
-                                // Chamar função serverless
-                                const resp = await fetch('/admin-reset-password', {
+                                // Obter URL do Supabase do cliente
+                                const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || supabase?.supabaseUrl;
+                                
+                                if (!supabaseUrl) {
+                                  throw new Error('URL do Supabase não configurada');
+                                }
+
+                                // Chamar Supabase Edge Function
+                                const functionUrl = `${supabaseUrl}/functions/v1/admin-reset-password`;
+                                
+                                const resp = await fetch(functionUrl, {
                                   method: 'POST',
                                   headers: {
                                     'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${token}`
+                                    'Authorization': `Bearer ${token}`,
+                                    'apikey': process.env.REACT_APP_SUPABASE_ANON_KEY || ''
                                   },
                                   body: JSON.stringify({ 
-                                    userId: member.id,
-                                    email: member.email // Adicionar email para debug
+                                    userId: member.id
                                   })
                                 });
 
