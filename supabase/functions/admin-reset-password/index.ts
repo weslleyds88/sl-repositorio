@@ -112,23 +112,94 @@ serve(async (req) => {
       chars[Math.floor(Math.random() * chars.length)]
     ).join('')
 
-    // Buscar usuário no auth pelo email
-    const { data: authUsers, error: authError } = await supabaseAdmin.auth.admin.listUsers()
+    // Buscar usuário no auth pelo email (usando API direta)
+    // Primeiro, tentar buscar pelo ID diretamente
+    let targetAuthUser = null
     
-    if (authError) {
+    try {
+      // Tentar buscar pelo ID primeiro (mais rápido e direto)
+      const { data: userById, error: userByIdError } = await supabaseAdmin.auth.admin.getUserById(targetUserId)
+      
+      if (!userByIdError && userById?.user) {
+        targetAuthUser = userById.user
+        console.log('Usuário encontrado por ID:', targetAuthUser.id)
+      } else {
+        // Se não encontrou por ID, buscar por email
+        console.log('Buscando por email:', targetProfile.email)
+        console.log('Target User ID do profiles:', targetUserId)
+        
+        // Listar todos os usuários (pode ter paginação, então buscamos todos)
+        let allUsers = []
+        let page = 1
+        const perPage = 1000 // Máximo permitido
+        
+        while (true) {
+          const { data: authUsers, error: authError } = await supabaseAdmin.auth.admin.listUsers({
+            page,
+            perPage
+          })
+          
+          if (authError) {
+            console.error('Erro ao listar usuários:', authError)
+            return new Response(
+              JSON.stringify({ error: 'Erro ao buscar usuários', detail: authError.message }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+
+          if (!authUsers || !authUsers.users || authUsers.users.length === 0) {
+            break
+          }
+
+          allUsers = allUsers.concat(authUsers.users)
+          
+          // Se retornou menos que perPage, chegamos ao fim
+          if (authUsers.users.length < perPage) {
+            break
+          }
+          
+          page++
+        }
+
+        console.log(`Total de usuários encontrados: ${allUsers.length}`)
+        console.log('Primeiros 5 emails:', allUsers.slice(0, 5).map(u => u.email))
+
+        // Buscar com comparação case-insensitive e trim
+        const targetEmailNormalized = targetProfile.email?.toLowerCase().trim()
+        targetAuthUser = allUsers.find(u => {
+          const userEmailNormalized = u.email?.toLowerCase().trim()
+          return userEmailNormalized === targetEmailNormalized
+        })
+        
+        if (targetAuthUser) {
+          console.log('✅ Usuário encontrado por email:', targetAuthUser.id, targetAuthUser.email)
+        } else {
+          console.log('❌ Email não encontrado. Email buscado:', targetEmailNormalized)
+          console.log('Emails disponíveis (primeiros 10):', allUsers.slice(0, 10).map(u => u.email))
+        }
+      }
+    } catch (searchError) {
+      console.error('Erro na busca:', searchError)
       return new Response(
-        JSON.stringify({ error: 'Erro ao buscar usuários', detail: authError.message }),
+        JSON.stringify({ 
+          error: 'Erro ao buscar usuário',
+          detail: searchError.message
+        }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-
-    const targetAuthUser = authUsers.users.find(u => u.email === targetProfile.email)
 
     if (!targetAuthUser) {
       return new Response(
         JSON.stringify({ 
           error: 'Usuário não encontrado em Authentication',
-          detail: 'Crie o usuário manualmente no Supabase Dashboard (Authentication → Users → Add user)'
+          detail: `Não foi possível encontrar o usuário com email ${targetProfile.email} ou ID ${targetUserId}. Verifique se o usuário existe na tabela auth.users.`,
+          debug: {
+            targetUserId,
+            targetEmail: targetProfile.email,
+            searchedById: true,
+            searchedByEmail: true
+          }
         }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -145,6 +216,20 @@ serve(async (req) => {
         JSON.stringify({ error: 'Erro ao atualizar senha', detail: updateError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    // Marcar que o usuário deve trocar a senha no próximo login
+    const { error: profileUpdateError } = await supabaseAdmin
+      .from('profiles')
+      .update({ must_change_password: true })
+      .eq('id', targetUserId)
+
+    if (profileUpdateError) {
+      console.error('Erro ao marcar must_change_password:', profileUpdateError)
+      // Não falhar a operação, apenas logar o erro
+      // A senha já foi resetada, então continuamos
+    } else {
+      console.log('✅ Perfil marcado para troca obrigatória de senha')
     }
 
     return new Response(

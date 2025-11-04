@@ -14,12 +14,13 @@ import Settings from './components/Settings';
 import AdminPanel from './components/AdminPanel';
 import PaymentTickets from './components/PaymentTickets';
 import AthleteProfile from './components/AthleteProfile';
+import ForceChangePassword from './components/ForceChangePassword';
 import { getCurrentMonth, getCurrentMonthObj } from './utils/dateUtils';
 import { supabase } from './lib/supabaseClient';
 import { scheduleCleanupProofs } from './utils/cleanupProofs';
 
 function AppContent() {
-  const { isAuthenticated, isAdmin, currentUser, login, logout, loading } = useAuth();
+  const { isAuthenticated, isAdmin, currentUser, login, logout, loading, refreshUser } = useAuth();
   const dbMode = process.env.REACT_APP_DB_MODE || 'local';
   const [db] = useState(() => {
     console.log('🗄️ Modo de banco de dados:', dbMode);
@@ -108,6 +109,19 @@ function AppContent() {
   // Se não autenticado, mostrar login
   if (!isAuthenticated) {
     return <Login onLogin={login} />;
+  }
+
+  // Se autenticado mas precisa trocar senha, mostrar tela de troca obrigatória
+  if (currentUser?.must_change_password) {
+    return (
+      <ForceChangePassword
+        currentUser={currentUser}
+        onPasswordChanged={async () => {
+          // Recarregar dados do usuário após trocar senha
+          await refreshUser();
+        }}
+      />
+    );
   }
 
   return (

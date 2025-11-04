@@ -17,7 +17,6 @@ const AthleteProfile = ({ currentUser, onUpdate }) => {
     observation: ''
   });
   const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
@@ -118,10 +117,6 @@ const AthleteProfile = ({ currentUser, onUpdate }) => {
   const validatePassword = () => {
     const newErrors = {};
 
-    if (!passwordData.currentPassword) {
-      newErrors.currentPassword = 'Senha atual é obrigatória';
-    }
-
     if (!passwordData.newPassword) {
       newErrors.newPassword = 'Nova senha é obrigatória';
     } else if (passwordData.newPassword.length < 6) {
@@ -185,26 +180,40 @@ const AthleteProfile = ({ currentUser, onUpdate }) => {
     setSuccessMessage('');
 
     try {
-      // Verificar senha atual
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: currentUser.email,
-        password: passwordData.currentPassword
-      });
-
-      if (signInError) {
-        throw new Error('Senha atual incorreta');
+      // Verificar se está autenticado
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Sessão expirada. Faça login novamente.');
       }
 
-      // Atualizar senha
+      // Atualizar senha diretamente (usuário já está autenticado)
       const { error: updateError } = await supabase.auth.updateUser({
         password: passwordData.newPassword
       });
 
       if (updateError) throw updateError;
 
+      // Se o usuário tinha must_change_password, remover o flag
+      if (currentUser?.must_change_password) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ must_change_password: false })
+          .eq('id', currentUser.id);
+        
+        if (profileError) {
+          console.error('Erro ao remover flag must_change_password:', profileError);
+          // Não falhar a operação, apenas logar o erro
+        }
+      }
+
       setSuccessMessage('Senha alterada com sucesso!');
       setIsChangingPassword(false);
-      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswordData({ newPassword: '', confirmPassword: '' });
+      
+      // Recarregar dados do usuário após trocar senha
+      if (onUpdate) {
+        onUpdate();
+      }
       
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
@@ -254,26 +263,14 @@ const AthleteProfile = ({ currentUser, onUpdate }) => {
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <h3 className="text-xl font-semibold mb-4">Alterar Senha</h3>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Senha Atual
-              </label>
-              <input
-                type="password"
-                name="currentPassword"
-                value={passwordData.currentPassword}
-                onChange={handlePasswordChange}
-                className={`w-full px-3 py-2 border rounded-lg ${errors.currentPassword ? 'border-red-500' : 'border-gray-300'}`}
-                required
-              />
-              {errors.currentPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.currentPassword}</p>
-              )}
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm">
+              💡 Você está autenticado, então não precisa informar sua senha atual. 
+              Basta definir uma nova senha.
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nova Senha
+                Nova Senha *
               </label>
               <input
                 type="password"
@@ -281,16 +278,19 @@ const AthleteProfile = ({ currentUser, onUpdate }) => {
                 value={passwordData.newPassword}
                 onChange={handlePasswordChange}
                 className={`w-full px-3 py-2 border rounded-lg ${errors.newPassword ? 'border-red-500' : 'border-gray-300'}`}
+                placeholder="Mínimo 6 caracteres"
                 required
+                minLength={6}
               />
               {errors.newPassword && (
                 <p className="mt-1 text-sm text-red-600">{errors.newPassword}</p>
               )}
+              <p className="mt-1 text-xs text-gray-500">A senha deve ter no mínimo 6 caracteres</p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Confirmar Nova Senha
+                Confirmar Nova Senha *
               </label>
               <input
                 type="password"
@@ -298,7 +298,9 @@ const AthleteProfile = ({ currentUser, onUpdate }) => {
                 value={passwordData.confirmPassword}
                 onChange={handlePasswordChange}
                 className={`w-full px-3 py-2 border rounded-lg ${errors.confirmPassword ? 'border-red-500' : 'border-gray-300'}`}
+                placeholder="Digite a senha novamente"
                 required
+                minLength={6}
               />
               {errors.confirmPassword && (
                 <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
@@ -323,7 +325,7 @@ const AthleteProfile = ({ currentUser, onUpdate }) => {
                 type="button"
                 onClick={() => {
                   setIsChangingPassword(false);
-                  setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                  setPasswordData({ newPassword: '', confirmPassword: '' });
                   setErrors({});
                 }}
                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"

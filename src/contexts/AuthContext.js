@@ -180,7 +180,8 @@ export function AuthProvider({ children }) {
     currentUser,
     login,
     logout,
-    loading
+    loading,
+    refreshUser
   };
 
   return (
