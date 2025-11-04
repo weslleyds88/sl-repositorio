@@ -12,20 +12,40 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
 
   const sourceList = allUsers !== null && isAdmin ? allUsers : members;
 
+  // Debug: Verificar dados carregados
+  useEffect(() => {
+    console.log('Members carregados:', members);
+    console.log('AllUsers carregados:', allUsers);
+    console.log('isAdmin:', isAdmin);
+  }, [members, allUsers, isAdmin]);
+
   const filteredMembers = sourceList.filter(member =>
-    member.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (member.phone && member.phone.includes(searchTerm))
+    member && member.full_name && (
+      member.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (member.phone && member.phone.includes(searchTerm))
+    )
   );
 
-  const sortedAndFilteredMembers = filteredMembers.sort((a, b) => {
-    const nameA = a.full_name.toLowerCase();
-    const nameB = b.full_name.toLowerCase();
-    if (sortOrder === 'asc') {
-      return nameA.localeCompare(nameB);
-    } else {
-      return nameB.localeCompare(nameA);
-    }
-  });
+  const sortedAndFilteredMembers = filteredMembers
+    .filter(member => member && member.id) // Proteção adicional
+    .sort((a, b) => {
+      const nameA = a.full_name?.toLowerCase() || '';
+      const nameB = b.full_name?.toLowerCase() || '';
+      if (sortOrder === 'asc') {
+        return nameA.localeCompare(nameB);
+      } else {
+        return nameB.localeCompare(nameA);
+      }
+    });
+
+  // Debug: Verificar lista processada
+  useEffect(() => {
+    console.log('Lista de members processada:', sortedAndFilteredMembers.map(m => ({
+      id: m.id,
+      name: m.full_name,
+      hasId: !!m.id
+    })));
+  }, [sortedAndFilteredMembers]);
 
   // Removido: criação manual pelo admin (cadastro vem pelo fluxo de registro)
 
@@ -153,7 +173,19 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {sortedAndFilteredMembers.map((member) => (
+                {sortedAndFilteredMembers.map((member) => {
+                  // Proteção contra member undefined
+                  if (!member) {
+                    console.error('Member undefined encontrado na lista:', member);
+                    return null;
+                  }
+                  
+                  if (!member.id) {
+                    console.error('Member sem ID encontrado:', member);
+                    return null;
+                  }
+
+                  return (
                   <tr key={member.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -218,21 +250,48 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
                           <button
                             onClick={async () => {
                               try {
-                                if (!supabase) return;
+                                if (!supabase) {
+                                  alert('Erro: Supabase não inicializado');
+                                  return;
+                                }
+
+                                // VERIFICAÇÃO CRÍTICA - garantir que member existe
+                                if (!member) {
+                                  console.error('Member é undefined:', member);
+                                  alert('Erro: Atleta não selecionado corretamente');
+                                  return;
+                                }
+
+                                // VERIFICAÇÃO CRÍTICA - garantir que member.id existe
+                                if (!member.id) {
+                                  console.error('Member ID é undefined:', member);
+                                  alert('Erro: ID do atleta não disponível');
+                                  return;
+                                }
+
+                                console.log('Resetando senha para:', member.id, member.full_name);
+
                                 if (!window.confirm(`Gerar nova senha para ${member.full_name}?`)) return;
                                 
                                 // Obter token de autenticação
                                 let { data: session } = await supabase.auth.getSession();
+                                console.log('Sessão inicial:', session);
+                                
                                 if (!session?.session) {
+                                  console.log('Sessão não encontrada, tentando refresh...');
                                   await supabase.auth.refreshSession();
                                   const refreshed = await supabase.auth.getSession();
                                   session = refreshed.data;
+                                  console.log('Sessão após refresh:', session);
                                 }
+                                
                                 const token = session?.session?.access_token;
                                 if (!token) {
                                   alert('Sessão inválida. Faça login novamente.');
                                   return;
                                 }
+
+                                console.log('Fazendo requisição para reset de senha...');
 
                                 // Chamar função serverless
                                 const resp = await fetch('/admin-reset-password', {
@@ -241,10 +300,17 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
                                     'Content-Type': 'application/json',
                                     'Authorization': `Bearer ${token}`
                                   },
-                                  body: JSON.stringify({ userId: member.id })
+                                  body: JSON.stringify({ 
+                                    userId: member.id,
+                                    email: member.email // Adicionar email para debug
+                                  })
                                 });
 
+                                console.log('Resposta HTTP:', resp.status, resp.statusText);
+
                                 const json = await resp.json();
+                                console.log('Resposta JSON:', json);
+
                                 if (!resp.ok) {
                                   const errorMsg = json.error || json.detail || 'Falha ao resetar senha';
                                   const errorDetail = json.detail ? `\n\nDetalhes: ${JSON.stringify(json.detail)}` : '';
@@ -255,7 +321,7 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
                                 await navigator.clipboard.writeText(newPassword).catch(() => {});
                                 alert(`✅ Senha resetada com sucesso!\n\nNova senha: ${newPassword}\n\n(Senha copiada para a área de transferência)`);
                               } catch (e) {
-                                console.error(e);
+                                console.error('Erro completo no reset de senha:', e);
                                 alert('Erro ao resetar senha: ' + (e.message || 'desconhecido'));
                               }
                             }}
@@ -296,7 +362,8 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
