@@ -3,6 +3,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
   const [proofs, setProofs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const pageSize = 30;
   const [selectedProof, setSelectedProof] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -109,7 +111,8 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
         .from('payment_proofs')
         .select('id, payment_id, user_id, proof_amount, payment_method, observation, status, submitted_at, storage_method, profiles:user_id(id, full_name, email)')
         .eq('status', 'pending')
-        .order('submitted_at', { ascending: false });
+        .order('submitted_at', { ascending: false })
+        .range(page * pageSize, page * pageSize + pageSize - 1);
 
       if (error) {
         console.log('❌ Erro na query:', error);
@@ -163,7 +166,8 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
         };
       });
 
-      setProofs(processedProofs);
+      // Se página 0, substitui; senão, concatena
+      setProofs(prev => (page === 0 ? processedProofs : [...prev, ...processedProofs]));
       console.log('✅ Comprovantes processados (com grupos):', processedProofs.length);
     } catch (error) {
       console.error('❌ Erro ao carregar comprovantes:', error);
@@ -171,7 +175,7 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, page]);
 
   // Função auxiliar para obter o rótulo da razão de rejeição
   const getRejectionLabel = (value) => {
@@ -581,9 +585,10 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
             <p className="mt-1 text-sm text-gray-500">Todos os comprovantes foram revisados.</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {proofs.map((proof) => (
-              <div key={proof.id} className="border border-gray-200 rounded-lg p-4">
+          <>
+            <div className="space-y-4">
+              {proofs.map((proof) => (
+                <div key={proof.id} className="border border-gray-200 rounded-lg p-4">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center space-x-4 mb-3">
@@ -740,9 +745,21 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
                     </div>
                   </div>
                 )}
-              </div>
-            ))}
-          </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={() => {
+                  setLoading(true);
+                  setPage(prev => prev + 1);
+                }}
+                className="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 rounded"
+              >
+                Carregar mais
+              </button>
+            </div>
+          </>
         )}
       </div>
     </div>

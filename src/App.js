@@ -51,9 +51,14 @@ function AppContent() {
 
   const loadData = async () => {
     try {
+      const membersPromise = isAdmin ? db.listMembers() : Promise.resolve([]);
+      const paymentsPromise = (isAdmin || !currentUser?.id)
+        ? db.listPayments()
+        : db.listPayments({ member_id: currentUser.id });
+
       const [membersData, paymentsData] = await Promise.all([
-        db.listMembers(),
-        db.listPayments()
+        membersPromise,
+        paymentsPromise
       ]);
       setMembers(membersData);
       setPayments(paymentsData);
@@ -73,8 +78,11 @@ function AppContent() {
     if (isAdmin) { // Apenas admin pode editar
       const paymentsData = await db.listPayments();
       setPayments(paymentsData);
+    } else if (currentUser?.id) {
+      const paymentsData = await db.listPayments({ member_id: currentUser.id });
+      setPayments(paymentsData);
     } else {
-      loadData(); // Recarrega dados no modo visualização
+      loadData(); // fallback
     }
   };
 

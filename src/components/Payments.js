@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import PaymentForm from './PaymentForm';
 import PaymentProofModal from './PaymentProofModal';
 import PaymentProofReview from './PaymentProofReview';
@@ -77,63 +77,20 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
   }, [isAdmin, loadGroups]);
 
   // Filtrar pagamentos baseado na visão (admin vs atleta)
-  const filteredPayments = payments.filter(p => {
+  const filteredPayments = useMemo(() => payments.filter(p => {
     // Se não for admin, mostrar apenas pagamentos do atleta atual
     if (!isAdmin && currentUser) {
-      console.log('🔍 Filtrando pagamento para usuário:', currentUser.id, 'Pagamento:', p.id, 'Member ID:', p.member_id);
-
       // Verificar se o member_id do pagamento corresponde ao usuário atual
       const isUserPayment = p.member_id && p.member_id === currentUser.id;
-
-      if (isUserPayment) {
-        console.log('✅ Pagamento pertence ao usuário');
-        return true;
-      }
-
-      console.log('❌ Pagamento não pertence ao usuário');
-      return false;
+      return !!isUserPayment;
     }
 
     // Admin vê todos os pagamentos (sem filtros adicionais)
     return true;
-  });
-
-  console.log('🎯 Pagamentos filtrados:', filteredPayments.length, 'de', payments.length);
-  console.log('👤 Usuário atual:', currentUser);
-  console.log('🏛️ Modo admin:', isAdmin);
-
-  if (!isAdmin && currentUser) {
-    console.log('👤 Pagamentos do usuário (após filtro):', filteredPayments.map(p => ({
-      id: p.id,
-      member_id: p.member_id,
-      group_id: p.group_id,
-      amount: p.amount,
-      category: p.category,
-      status: p.status
-    })));
-  }
-
-  console.log('📋 TODOS os pagamentos (antes da filtragem):', payments.length);
-  console.log('📊 Detalhes de todos os pagamentos:', payments.map(p => ({
-    id: p.id,
-    member_id: p.member_id,
-    group_id: p.group_id,
-    amount: p.amount,
-    category: p.category,
-    status: p.status,
-    due_date: p.due_date
-  })));
-
-  console.log('👥 Membros disponíveis:', members.length);
-  console.log('📋 Detalhes dos membros:', members.map(m => ({
-    id: m.id,
-    full_name: m.full_name,
-    group_id: m.group_id,
-    group_name: m.group_name
-  })));
+  }), [payments, isAdmin, currentUser]);
 
   // Aplicar filtros na lista de pagamentos
-  const listFilteredPayments = filteredPayments.filter(p => {
+  const listFilteredPayments = useMemo(() => filteredPayments.filter(p => {
     // Filtro de status (sempre aplicado)
     if (listStatus !== 'all') {
       if (listStatus === 'paid' && p.status !== 'paid') return false;
@@ -156,9 +113,9 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
     }
     
     return true;
-  });
+  }), [filteredPayments, listStatus, isAdmin, listMonth, listYear]);
 
-  const sortedAndFilteredPayments = listFilteredPayments.map(payment => {
+  const sortedAndFilteredPayments = useMemo(() => listFilteredPayments.map(payment => {
     // Para admin, se for pagamento de grupo, calcular valor total
     if (isAdmin && payment.group_id && payment.member_id) {
       // Buscar TODOS os pagamentos do grupo (não apenas os filtrados)
@@ -267,34 +224,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
     const nameB = memberB && memberB.full_name ? memberB.full_name.toLowerCase() : '';
 
     return nameA.localeCompare(nameB);
-  });
-
-  console.log('🏁 Pagamentos finais processados:', sortedAndFilteredPayments.length);
-  console.log('📊 Pagamentos de grupo detectados:', sortedAndFilteredPayments.filter(p => p.isGroupPayment).length);
-  console.log('💰 Valores totais calculados:', sortedAndFilteredPayments.map(p => ({
-    id: p.id,
-    amount: p.amount,
-    displayAmount: p.displayAmount,
-    paidAmount: p.paidAmount || 0,
-    pendingAmount: p.pendingAmount || 0,
-    isGroupPayment: p.isGroupPayment,
-    groupMemberCount: p.groupMemberCount,
-    status: p.status,
-    groupPayments: p.groupPayments ? `${p.groupPayments.length} pagamentos` : 'null'
-  })));
-
-  // Log específico para debug do botão sincronizar
-  sortedAndFilteredPayments.forEach(p => {
-    if (p.isGroupPayment) {
-      console.log(`🔄 Pagamento de grupo ${p.id}:`, {
-        isGroupPayment: p.isGroupPayment,
-        groupMemberCount: p.groupMemberCount,
-        hasGroupPayments: !!p.groupPayments,
-        groupPaymentsLength: p.groupPayments?.length,
-        shouldShowSyncButton: !!(p.isGroupPayment && p.groupPayments)
-      });
-    }
-  });
+  }), [listFilteredPayments, isAdmin, payments, members, groups]);
 
   // Calcular resumo geral para admin
   const totalPaid = sortedAndFilteredPayments.reduce((sum, p) => sum + (p.paidAmount || 0), 0);
@@ -663,6 +593,36 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
     }
   };
 
+  // Sincronizar todos os grupos de uma vez (admin)
+  const handleSyncAllGroupPayments = async () => {
+    if (!isAdmin) {
+      alert('Modo visualização: você não pode sincronizar pagamentos.');
+      return;
+    }
+
+    // Pegar somente os pagamentos representativos de grupo (linha consolidada)
+    const groupsToSync = sortedAndFilteredPayments.filter(p => p.isGroupPayment && p.groupPayments && p.groupPayments.length > 0);
+
+    if (groupsToSync.length === 0) {
+      alert('Não há grupos para sincronizar no filtro atual.');
+      return;
+    }
+
+    const confirmMsg = `Sincronizar todos os ${groupsToSync.length} grupo(s) visíveis?\n\nIsto irá:\n• Adicionar novos atletas que entraram no grupo\n• Remover/desassociar atletas que saíram\n• Preservar histórico quando existir ticket aprovado`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      for (const groupPayment of groupsToSync) {
+        await handleSyncGroupPayments(groupPayment);
+      }
+      await onRefresh();
+      alert('✅ Sincronização em massa concluída!');
+    } catch (error) {
+      console.error('❌ Erro na sincronização em massa:', error);
+      alert('Erro na sincronização em massa: ' + (error.message || 'Erro desconhecido'));
+    }
+  };
+
   const handleDeletePayment = async (id) => {
     if (!isAdmin) {
       alert('Modo visualização: você não pode excluir pagamentos.');
@@ -820,6 +780,13 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           />
           {isAdmin && (
             <>
+              <button
+                onClick={handleSyncAllGroupPayments}
+                className="bg-purple-100 hover:bg-purple-200 text-purple-800 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                title="Sincronizar todos os grupos visíveis"
+              >
+                🔄 Sincronizar Todos
+              </button>
               <button
                 onClick={() => setShowProofReview(true)}
                 className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"

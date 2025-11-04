@@ -105,13 +105,12 @@ class SupabaseAdapter {
   // PAYMENTS
   async listPayments(filters = {}) {
     try {
+      // Selecionar apenas colunas necessárias para reduzir payload
       let query = this.supabase
         .from('payments')
         .select(`
-          *,
-          user_groups (
-            name
-          )
+          id, member_id, group_id, amount, category, status, paid_amount, due_date, observation, pix_key, pix_name, created_at,
+          user_groups ( name )
         `);
 
       if (filters.member_id) {

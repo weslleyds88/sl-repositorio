@@ -6,6 +6,7 @@ function AdminPanel({ isAdmin, supabase }) {
   const [pendingUsers, setPendingUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [usersLoaded, setUsersLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [editingGroup, setEditingGroup] = useState(null);
@@ -38,20 +39,8 @@ function AdminPanel({ isAdmin, supabase }) {
       console.log('📋 Dados dos pendentes:', pending);
       setPendingUsers(pending || []);
 
-      // Carregar todos os usuários (COM FOTOS)
-      const { data: all, error: allError } = await supabase
-        .from('profiles')
-        .select('id, email, full_name, phone, position, role, status, account_status, birth_date, rg, region, gender, responsible_name, responsible_phone, avatar_url, created_at, updated_at')
-        .order('created_at', { ascending: false });
-
-      if (allError) {
-        console.error('❌ Erro ao buscar todos usuários:', allError);
-        throw allError;
-      }
-
-      console.log('👥 Total de usuários:', all?.length || 0);
-      console.log('📋 Todos os usuários:', all);
-      setAllUsers(all || []);
+      // NÃO carregar todos os usuários aqui para não travar a tela inicial.
+      // Eles serão carregados sob demanda quando a aba "users" for aberta.
 
       // Carregar grupos
       const { data: groupsData, error: groupsError } = await supabase
@@ -78,6 +67,26 @@ function AdminPanel({ isAdmin, supabase }) {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Carregar "Todos os Usuários" sob demanda quando a aba for ativada
+  useEffect(() => {
+    const loadAllUsers = async () => {
+      try {
+        if (usersLoaded || activeTab !== 'users') return;
+        console.log('🔍 Carregando lista completa de usuários (lazy)...');
+        const { data: all, error: allError } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, phone, position, role, status, account_status, avatar_url, created_at, updated_at')
+          .order('created_at', { ascending: false });
+        if (allError) throw allError;
+        setAllUsers(all || []);
+        setUsersLoaded(true);
+      } catch (e) {
+        console.error('Erro ao carregar todos os usuários:', e);
+      }
+    };
+    loadAllUsers();
+  }, [activeTab, usersLoaded, supabase]);
 
   const handleCreateGroup = () => {
     setEditingGroup(null);
