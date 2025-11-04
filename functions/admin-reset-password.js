@@ -10,6 +10,17 @@ export async function onRequestPost(context) {
   const { request, env } = context;
   
   try {
+    // Verificar se as variáveis de ambiente estão configuradas
+    if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY || !env.SUPABASE_SERVICE_ROLE_KEY) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Variáveis de ambiente não configuradas',
+          detail: 'Configure SUPABASE_URL, SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY no Cloudflare Pages'
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Verificar autenticação do admin
     const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -158,11 +169,18 @@ export async function onRequestPost(context) {
     });
 
     if (!updateResp.ok) {
-      const errorData = await updateResp.json().catch(() => ({}));
+      const errorText = await updateResp.text().catch(() => 'Erro desconhecido');
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { message: errorText };
+      }
       return new Response(
         JSON.stringify({ 
           error: 'Erro ao atualizar senha',
-          detail: errorData
+          detail: errorData,
+          status: updateResp.status
         }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
@@ -186,7 +204,8 @@ export async function onRequestPost(context) {
     return new Response(
       JSON.stringify({ 
         error: 'Erro interno do servidor',
-        detail: error.message 
+        detail: error.message,
+        stack: error.stack
       }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );

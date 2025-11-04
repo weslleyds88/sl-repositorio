@@ -246,7 +246,9 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
 
                                 const json = await resp.json();
                                 if (!resp.ok) {
-                                  throw new Error(json.error || json.detail || 'Falha ao resetar senha');
+                                  const errorMsg = json.error || json.detail || 'Falha ao resetar senha';
+                                  const errorDetail = json.detail ? `\n\nDetalhes: ${JSON.stringify(json.detail)}` : '';
+                                  throw new Error(errorMsg + errorDetail);
                                 }
 
                                 const newPassword = json.password;
