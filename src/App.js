@@ -155,6 +155,7 @@ function AppContent() {
                 members={members}
                 onRefresh={refreshMembers}
                 isAdmin={isAdmin}
+                supabase={supabase}
               />
             }
           />

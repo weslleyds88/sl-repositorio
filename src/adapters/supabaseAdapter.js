@@ -53,6 +53,14 @@ class SupabaseAdapter {
           full_name: member.name,
           phone: member.phone,
           observation: member.observation,
+          position: member.position,
+          birth_date: member.birth_date,
+          rg: member.rg,
+          region: member.region,
+          gender: member.gender,
+          responsible_name: member.responsible_name,
+          responsible_phone: member.responsible_phone,
+          avatar_url: member.avatar_url,
           status: 'approved',
           role: 'athlete'
         }])
@@ -75,6 +83,14 @@ class SupabaseAdapter {
           full_name: member.name,
           phone: member.phone,
           observation: member.observation,
+          position: member.position,
+          birth_date: member.birth_date,
+          rg: member.rg,
+          region: member.region,
+          gender: member.gender,
+          responsible_name: member.responsible_name,
+          responsible_phone: member.responsible_phone,
+          avatar_url: member.avatar_url,
           updated_at: new Date().toISOString()
         })
         .eq('id', id);

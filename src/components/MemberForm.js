@@ -4,7 +4,15 @@ const MemberForm = ({ member, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
-    observation: ''
+    observation: '',
+    position: '',
+    birth_date: '',
+    rg: '',
+    region: '',
+    gender: '',
+    responsible_name: '',
+    responsible_phone: '',
+    avatar_url: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -15,7 +23,15 @@ const MemberForm = ({ member, onSubmit, onCancel }) => {
       setFormData({
         full_name: member.full_name || member.name || '',
         phone: member.phone || '',
-        observation: member.observation || ''
+        observation: member.observation || '',
+        position: member.position || '',
+        birth_date: member.birth_date || '',
+        rg: member.rg || '',
+        region: member.region || '',
+        gender: member.gender || '',
+        responsible_name: member.responsible_name || '',
+        responsible_phone: member.responsible_phone || '',
+        avatar_url: member.avatar_url || ''
       });
     }
   }, [member]);
@@ -31,6 +47,9 @@ const MemberForm = ({ member, onSubmit, onCancel }) => {
 
     if (formData.phone && !isValidPhone(formData.phone)) {
       newErrors.phone = 'Formato de telefone inválido';
+    }
+    if (formData.responsible_phone && !isValidPhone(formData.responsible_phone)) {
+      newErrors.responsible_phone = 'Telefone do responsável inválido';
     }
 
     setErrors(newErrors);
@@ -62,7 +81,7 @@ const MemberForm = ({ member, onSubmit, onCancel }) => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     
-    if (name === 'phone') {
+    if (name === 'phone' || name === 'responsible_phone') {
       setFormData(prev => ({
         ...prev,
         [name]: formatPhone(value)
@@ -96,7 +115,15 @@ const MemberForm = ({ member, onSubmit, onCancel }) => {
       await onSubmit({
         name: formData.full_name.trim(),
         phone: formData.phone.trim() || null,
-        observation: formData.observation.trim() || null
+        observation: formData.observation.trim() || null,
+        position: formData.position.trim() || null,
+        birth_date: formData.birth_date || null,
+        rg: formData.rg.trim() || null,
+        region: formData.region.trim() || null,
+        gender: formData.gender || null,
+        responsible_name: formData.responsible_name.trim() || null,
+        responsible_phone: formData.responsible_phone.trim() || null,
+        avatar_url: formData.avatar_url.trim() || null
       });
     } catch (error) {
       console.error('Erro ao salvar sócio:', error);
@@ -156,6 +183,57 @@ const MemberForm = ({ member, onSubmit, onCancel }) => {
           {errors.phone && (
             <p className="mt-1 text-sm text-danger-600">{errors.phone}</p>
           )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="label">Posição</label>
+            <input type="text" name="position" value={formData.position} onChange={handleChange} className="input" placeholder="Levantador, Oposto, ..." />
+          </div>
+          <div>
+            <label className="label">Data de Nascimento</label>
+            <input type="date" name="birth_date" value={formData.birth_date} onChange={handleChange} className="input" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="label">RG</label>
+            <input type="text" name="rg" value={formData.rg} onChange={handleChange} className="input" />
+          </div>
+          <div>
+            <label className="label">Região (SP)</label>
+            <input type="text" name="region" value={formData.region} onChange={handleChange} className="input" />
+          </div>
+        </div>
+
+        <div>
+          <label className="label">Gênero</label>
+          <select name="gender" value={formData.gender} onChange={handleChange} className="input">
+            <option value="">Não informar</option>
+            <option value="male">Masculino</option>
+            <option value="female">Feminino</option>
+            <option value="other">Outro</option>
+          </select>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="label">Responsável (Nome)</label>
+            <input type="text" name="responsible_name" value={formData.responsible_name} onChange={handleChange} className="input" />
+          </div>
+          <div>
+            <label className="label">Responsável (Telefone)</label>
+            <input type="text" name="responsible_phone" value={formData.responsible_phone} onChange={handleChange} className={`input ${errors.responsible_phone ? 'border-danger-300 focus:ring-danger-500' : ''}`} placeholder="(11) 99999-9999" maxLength={15} />
+            {errors.responsible_phone && (
+              <p className="mt-1 text-sm text-danger-600">{errors.responsible_phone}</p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label className="label">Foto (URL)</label>
+          <input type="text" name="avatar_url" value={formData.avatar_url} onChange={handleChange} className="input" placeholder="https://..." />
         </div>
 
         <div>

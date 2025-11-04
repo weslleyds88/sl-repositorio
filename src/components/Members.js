@@ -1,15 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MemberForm from './MemberForm';
 import { formatDate } from '../utils/dateUtils';
 
-const Members = ({ db, members, onRefresh, isAdmin }) => {
+const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [allUsers, setAllUsers] = useState(null); // quando admin, carrega lista completa com avatar
 
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc' ou 'desc'
 
-  const filteredMembers = members.filter(member =>
+  const sourceList = allUsers !== null && isAdmin ? allUsers : members;
+
+  const filteredMembers = sourceList.filter(member =>
     member.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (member.phone && member.phone.includes(searchTerm))
   );
@@ -81,19 +84,32 @@ const Members = ({ db, members, onRefresh, isAdmin }) => {
     setEditingMember(null);
   };
 
+  // Carregar lista completa de usuários (com avatar) quando admin
+  useEffect(() => {
+    const loadAll = async () => {
+      if (!isAdmin || !supabase) return;
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, phone, position, role, status, account_status, avatar_url, created_at, observation')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        setAllUsers(data || []);
+      } catch (e) {
+        console.error('Erro ao carregar usuários:', e);
+        setAllUsers(null);
+      }
+    };
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, supabase]);
+
   return (
     <div className="p-6">
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold text-gray-900">Atletas</h2>
           <div className="flex items-center space-x-3">
-            <button
-              onClick={handleAddMember}
-              disabled={!isAdmin}
-              className={`btn ${isAdmin ? 'btn-primary' : 'btn-secondary opacity-50 cursor-not-allowed'}`}
-            >
-              {isAdmin ? 'Novo Atleta' : 'Modo Visualização'}
-            </button>
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value)}
@@ -127,12 +143,11 @@ const Members = ({ db, members, onRefresh, isAdmin }) => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Nome
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Telefone
-                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Função</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telefone</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Observação
                   </th>
@@ -150,9 +165,23 @@ const Members = ({ db, members, onRefresh, isAdmin }) => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
+                          {member.avatar_url ? (
+                            <img
+                              src={member.avatar_url}
+                              alt={member.full_name}
+                              className="h-10 w-10 rounded-full object-cover border"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div 
+                            className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center"
+                            style={{ display: member.avatar_url ? 'none' : 'flex' }}
+                          >
                             <span className="text-primary-600 font-medium text-sm">
-                              {member.full_name.charAt(0).toUpperCase()}
+                              {member.full_name?.charAt(0)?.toUpperCase()}
                             </span>
                           </div>
                         </div>
@@ -162,6 +191,24 @@ const Members = ({ db, members, onRefresh, isAdmin }) => {
                           </div>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {member.email || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        member.status === 'approved' ? 'bg-green-100 text-green-800' :
+                        member.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {member.status === 'approved' ? 'Aprovado' : member.status === 'pending' ? 'Pendente' : 'Rejeitado'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        member.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {member.role === 'admin' ? 'Administrador' : 'Jogador'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {member.phone || '-'}
@@ -174,6 +221,42 @@ const Members = ({ db, members, onRefresh, isAdmin }) => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
+                        {isAdmin && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                if (!supabase) return;
+                                const { data: session } = await supabase.auth.getSession();
+                                const token = session?.session?.access_token;
+                                if (!token) {
+                                  alert('Sessão inválida. Faça login novamente.');
+                                  return;
+                                }
+                                if (!window.confirm(`Gerar senha temporária para ${member.full_name}?`)) return;
+                                const resp = await fetch('/admin-reset-password', {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token}`
+                                  },
+                                  body: JSON.stringify({ userId: member.id })
+                                });
+                                const json = await resp.json();
+                                if (!resp.ok) throw new Error(json.error || 'Falha ao gerar senha');
+                                const pwd = json.password;
+                                await navigator.clipboard.writeText(pwd).catch(() => {});
+                                alert(`Senha temporária gerada e copiada para a área de transferência:\n\n${pwd}\n\nObs.: O atleta deverá trocá-la no próximo login.`);
+                              } catch (e) {
+                                console.error(e);
+                                alert('Erro ao gerar senha: ' + (e.message || 'desconhecido'));
+                              }
+                            }}
+                            className="text-blue-600 hover:text-blue-900"
+                            title="Gerar senha temporária"
+                          >
+                            🔑 Senha
+                          </button>
+                        )}
                         <button
                           onClick={() => handleEditMember(member)}
                           disabled={!isAdmin}
@@ -218,17 +301,7 @@ const Members = ({ db, members, onRefresh, isAdmin }) => {
             <p className="mt-1 text-sm text-gray-500">
               {searchTerm ? 'Tente ajustar sua busca.' : 'Comece adicionando um novo atleta.'}
             </p>
-            {!searchTerm && (
-              <div className="mt-6">
-                <button
-                  onClick={handleAddMember}
-                  disabled={!isAdmin}
-                  className={`btn ${isAdmin ? 'btn-primary' : 'btn-secondary opacity-50 cursor-not-allowed'}`}
-                >
-                  {isAdmin ? 'Adicionar Atleta' : 'Modo Visualização'}
-                </button>
-              </div>
-            )}
+            {/* Botão de novo atleta removido a pedido */}
           </div>
         )}
       </div>

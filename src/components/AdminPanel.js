@@ -425,16 +425,6 @@ function AdminPanel({ isAdmin, supabase }) {
             Aprovações Pendentes ({pendingUsers.length})
           </button>
           <button
-            onClick={() => setActiveTab('users')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'users'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Todos os Usuários ({allUsers.length})
-          </button>
-          <button
             onClick={() => setActiveTab('groups')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'groups'
@@ -443,16 +433,6 @@ function AdminPanel({ isAdmin, supabase }) {
             }`}
           >
             Grupos ({groups.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('tickets')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'tickets'
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            🎫 Tickets
           </button>
         </nav>
       </div>
@@ -615,117 +595,6 @@ function AdminPanel({ isAdmin, supabase }) {
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {activeTab === 'users' && (
-        <div className="space-y-6">
-          <h2 className="text-xl font-semibold text-gray-900">Todos os Usuários</h2>
-
-          <div className="grid gap-4">
-            {allUsers.map((user) => (
-              <div key={user.id} className="card p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex-shrink-0">
-                      {user.avatar_url ? (
-                        <img
-                          src={user.avatar_url}
-                          alt={user.full_name}
-                          className={`w-12 h-12 rounded-full object-cover border-2 ${
-                            user.role === 'admin' ? 'border-red-300' : 'border-green-300'
-                          }`}
-                          onError={(e) => {
-                            // Fallback para inicial se imagem falhar
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'flex';
-                          }}
-                        />
-                      ) : null}
-                      <div 
-                        className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                          user.role === 'admin' ? 'bg-red-100' : 'bg-green-100'
-                        }`}
-                        style={{ display: user.avatar_url ? 'none' : 'flex' }}
-                      >
-                        <span className={`font-medium ${
-                          user.role === 'admin' ? 'text-red-600' : 'text-green-600'
-                        }`}>
-                          {user.full_name.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-gray-900">{user.full_name}</h3>
-                      <p className="text-sm text-gray-500">{user.email}</p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          user.status === 'approved' ? 'bg-green-100 text-green-800' :
-                          user.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {user.status === 'approved' ? 'Aprovado' :
-                           user.status === 'pending' ? 'Pendente' : 'Rejeitado'}
-                        </span>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          user.role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {user.role === 'admin' ? 'Administrador' : 'Jogador'}
-                        </span>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          (user.account_status || 'active') === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {(user.account_status || 'active') === 'active' ? '✓ Ativa' : '✗ Desativada'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <select
-                      value={user.role}
-                      onChange={(e) => handleChangeUserRole(user.id, e.target.value)}
-                      className="text-sm border border-gray-300 rounded px-2 py-1"
-                    >
-                      <option value="athlete">Jogador</option>
-                      <option value="admin">Administrador</option>
-                    </select>
-                    
-                    {/* Botão Ativar/Desativar */}
-                    <button
-                      onClick={() => handleToggleAccountStatus(user.id, user.account_status || 'active', user.full_name)}
-                      className={`text-sm px-3 py-1 rounded font-medium transition-colors ${
-                        (user.account_status || 'active') === 'active'
-                          ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          : 'bg-green-100 text-green-700 hover:bg-green-200'
-                      }`}
-                      title={(user.account_status || 'active') === 'active' ? 'Desativar conta' : 'Reativar conta'}
-                    >
-                      {(user.account_status || 'active') === 'active' ? '🔒 Desativar' : '🔓 Reativar'}
-                    </button>
-
-                    {/* Botão Reset de Senha */}
-                    <button
-                      onClick={() => handleResetPassword(user.email, user.full_name)}
-                      className="text-sm px-3 py-1 rounded font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
-                      title="Enviar email de reset de senha"
-                    >
-                      🔑 Reset Senha
-                    </button>
-
-                    {/* Botão Excluir Conta */}
-                    <button
-                      onClick={() => handleDeleteUser(user.id, user.full_name)}
-                      className="text-sm px-3 py-1 rounded font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
-                      title="Excluir conta permanentemente"
-                    >
-                      🗑️ Excluir
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 

@@ -597,7 +597,7 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
                           {proof.profiles?.full_name || 'Usuário Desconhecido'}
                         </h4>
                         <p className="text-xs text-gray-500 mb-2">
-                          {proof.profiles?.email || proof.user_id}
+                          {proof.profiles?.phone || proof.user_id}
                         </p>
                         <p className="text-sm text-gray-600">
                           <strong>Pagamento ID:</strong> {proof.payment_id}
