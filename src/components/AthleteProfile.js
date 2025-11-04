@@ -518,8 +518,12 @@ const AthleteProfile = ({ currentUser, onUpdate }) => {
                   value={formData.observation}
                   onChange={handleChange}
                   rows={3}
+                  placeholder="Observações gerais sobre o perfil (opcional)"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Este campo pode ser usado para notas gerais sobre o perfil
+                </p>
               </div>
             </div>
 
@@ -632,7 +636,7 @@ const AthleteProfile = ({ currentUser, onUpdate }) => {
                 {formData.observation && (
                   <div className="mt-4">
                     <h4 className="text-sm font-semibold text-gray-500 uppercase mb-2">Observações</h4>
-                    <p className="text-gray-900">{formData.observation}</p>
+                    <p className="text-gray-900 whitespace-pre-wrap">{formData.observation}</p>
                   </div>
                 )}
               </div>
