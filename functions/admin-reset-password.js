@@ -72,25 +72,39 @@ export async function onRequestPost(context) {
       );
     }
     
-    // A API /auth/v1/user pode retornar { id, ... } ou { user: { id, ... } }
-    const userId = userData?.id || userData?.user?.id;
-    if (!userId) {
+    // CORREÇÃO: Verificar a estrutura da resposta corretamente
+    console.log('Resposta completa da verificação:', JSON.stringify(userData, null, 2));
+
+    let userId;
+
+    if (userData && userData.user && userData.user.id) {
+      // Nova estrutura: { user: { id: ... } }
+      userId = userData.user.id;
+      console.log('ID do usuário encontrado em userData.user.id:', userId);
+    } else if (userData && userData.id) {
+      // Estrutura alternativa: { id: ... }
+      userId = userData.id;
+      console.log('ID do usuário encontrado em userData.id:', userId);
+    } else {
+      // Estrutura desconhecida
+      console.log('Estrutura desconhecida da resposta:', userData);
       return new Response(
         JSON.stringify({ 
           error: 'Erro ao obter ID do usuário',
-          detail: 'Resposta da API não contém ID do usuário',
+          detail: 'Resposta da API não contém ID do usuário na estrutura esperada',
           debug: { 
-            hasId: !!userData?.id,
-            hasUser: !!userData?.user,
-            hasUserId: !!userData?.user?.id,
-            keys: Object.keys(userData || {})
+            userData: userData,
+            keys: userData ? Object.keys(userData) : 'userData é undefined',
+            hasUserObject: !!(userData && userData.user),
+            hasUserId: !!(userData && userData.user && userData.user.id),
+            hasDirectId: !!(userData && userData.id)
           }
         }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
     
-    // Verificar se é admin
+    // Verificar se é admin (restante do código permanece igual)
     const profileUrl = `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=role`;
     const profileResp = await fetch(profileUrl, {
       headers: {
@@ -129,7 +143,6 @@ export async function onRequestPost(context) {
     // Gerar senha aleatória se não fornecida
     let passwordToSet = newPassword;
     if (!passwordToSet) {
-      // Gerar senha aleatória de 12 caracteres
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
       passwordToSet = Array.from({ length: 12 }, () => 
         chars[Math.floor(Math.random() * chars.length)]
@@ -251,4 +264,3 @@ export async function onRequestPost(context) {
     );
   }
 }
-
