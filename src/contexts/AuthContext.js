@@ -175,30 +175,46 @@ export function AuthProvider({ children }) {
   };
 
   const refreshUser = async () => {
-    if (!currentUser?.id) return;
+    if (!currentUser?.id && !currentUser?.email) return;
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile, error } = await supabase
+      if (!user) return;
+
+      // Primeiro tentar buscar o perfil pelo ID do auth user
+      let { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      // Se não encontrar ou der erro, buscar por email (mesma lógica do Login.js)
+      if (profileError && (profileError.code === 'PGRST116' || profileError.code === '23505')) {
+        const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', user.id)
-          .single();
-        
-        if (error) {
-          console.error('Erro ao buscar perfil atualizado:', error);
-          return;
-        }
+          .eq('email', user.email)
+          .order('created_at', { ascending: false });
 
-        if (profile) {
-          setCurrentUser(profile);
-          
-          // Atualizar isAdmin se necessário
-          const newIsAdmin = profile.role === 'admin';
-          if (newIsAdmin !== isAdmin) {
-            setIsAdmin(newIsAdmin);
-          }
+        if (!profilesError && profiles && profiles.length > 0) {
+          // Usar o perfil mais recente ou o aprovado
+          profile = profiles.find(p => p.status === 'approved') || profiles[0];
+          profileError = null;
+        }
+      }
+
+      if (profileError) {
+        console.error('Erro ao buscar perfil atualizado:', profileError);
+        return;
+      }
+
+      if (profile) {
+        setCurrentUser(profile);
+        
+        // Atualizar isAdmin se necessário
+        const newIsAdmin = profile.role === 'admin';
+        if (newIsAdmin !== isAdmin) {
+          setIsAdmin(newIsAdmin);
         }
       }
     } catch (error) {
