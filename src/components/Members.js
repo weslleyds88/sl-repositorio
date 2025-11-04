@@ -214,6 +214,55 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
+                        {isAdmin && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                if (!supabase) return;
+                                if (!window.confirm(`Gerar nova senha para ${member.full_name}?`)) return;
+                                
+                                // Obter token de autenticação
+                                let { data: session } = await supabase.auth.getSession();
+                                if (!session?.session) {
+                                  await supabase.auth.refreshSession();
+                                  const refreshed = await supabase.auth.getSession();
+                                  session = refreshed.data;
+                                }
+                                const token = session?.session?.access_token;
+                                if (!token) {
+                                  alert('Sessão inválida. Faça login novamente.');
+                                  return;
+                                }
+
+                                // Chamar função serverless
+                                const resp = await fetch('/admin-reset-password', {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token}`
+                                  },
+                                  body: JSON.stringify({ userId: member.id })
+                                });
+
+                                const json = await resp.json();
+                                if (!resp.ok) {
+                                  throw new Error(json.error || json.detail || 'Falha ao resetar senha');
+                                }
+
+                                const newPassword = json.password;
+                                await navigator.clipboard.writeText(newPassword).catch(() => {});
+                                alert(`✅ Senha resetada com sucesso!\n\nNova senha: ${newPassword}\n\n(Senha copiada para a área de transferência)`);
+                              } catch (e) {
+                                console.error(e);
+                                alert('Erro ao resetar senha: ' + (e.message || 'desconhecido'));
+                              }
+                            }}
+                            className="text-blue-600 hover:text-blue-900"
+                            title="Resetar senha"
+                          >
+                            🔑
+                          </button>
+                        )}
                         <button
                           onClick={() => handleEditMember(member)}
                           disabled={!isAdmin}
