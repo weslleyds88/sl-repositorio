@@ -10,12 +10,23 @@ export async function onRequestPost(context) {
   const { request, env } = context;
   
   try {
+    // Usar variáveis REACT_APP_ como fallback (para compatibilidade)
+    const supabaseUrl = env.SUPABASE_URL || env.REACT_APP_SUPABASE_URL;
+    const supabaseAnonKey = env.SUPABASE_ANON_KEY || env.REACT_APP_SUPABASE_ANON_KEY;
+    const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY || env.REACT_APP_SUPABASE_SERVICE_ROLE_KEY;
+    
     // Verificar se as variáveis de ambiente estão configuradas
-    if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY || !env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
       return new Response(
         JSON.stringify({ 
           error: 'Variáveis de ambiente não configuradas',
-          detail: 'Configure SUPABASE_URL, SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY no Cloudflare Pages'
+          detail: 'Configure SUPABASE_URL (ou REACT_APP_SUPABASE_URL), SUPABASE_ANON_KEY (ou REACT_APP_SUPABASE_ANON_KEY) e SUPABASE_SERVICE_ROLE_KEY (ou REACT_APP_SUPABASE_SERVICE_ROLE_KEY) no Cloudflare Pages',
+          debug: {
+            hasUrl: !!supabaseUrl,
+            hasAnonKey: !!supabaseAnonKey,
+            hasServiceKey: !!serviceRoleKey,
+            availableKeys: Object.keys(env).filter(k => k.includes('SUPABASE'))
+          }
         }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
@@ -33,11 +44,11 @@ export async function onRequestPost(context) {
     const token = authHeader.replace('Bearer ', '');
     
     // Verificar se o token é válido e se o usuário é admin
-    const verifyUrl = `${env.SUPABASE_URL}/auth/v1/user`;
+    const verifyUrl = `${supabaseUrl}/auth/v1/user`;
     const verifyResp = await fetch(verifyUrl, {
       headers: {
         'Authorization': `Bearer ${token}`,
-        'apikey': env.SUPABASE_ANON_KEY
+        'apikey': supabaseAnonKey
       }
     });
 
@@ -51,11 +62,11 @@ export async function onRequestPost(context) {
     const userData = await verifyResp.json();
     
     // Verificar se é admin
-    const profileUrl = `${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${userData.id}&select=role`;
+    const profileUrl = `${supabaseUrl}/rest/v1/profiles?id=eq.${userData.id}&select=role`;
     const profileResp = await fetch(profileUrl, {
       headers: {
         'Authorization': `Bearer ${token}`,
-        'apikey': env.SUPABASE_ANON_KEY,
+        'apikey': supabaseAnonKey,
         'Content-Type': 'application/json'
       }
     });
@@ -97,11 +108,11 @@ export async function onRequestPost(context) {
     }
 
     // Buscar email do usuário no profiles
-    const userProfileUrl = `${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=email`;
+    const userProfileUrl = `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=email`;
     const userProfileResp = await fetch(userProfileUrl, {
       headers: {
-        'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-        'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'apikey': serviceRoleKey,
         'Content-Type': 'application/json'
       }
     });
@@ -124,11 +135,11 @@ export async function onRequestPost(context) {
     const userEmail = userProfileData[0].email;
 
     // Buscar usuário no auth.users pelo email
-    const authUsersUrl = `${env.SUPABASE_URL}/auth/v1/admin/users?email=eq.${encodeURIComponent(userEmail)}`;
+    const authUsersUrl = `${supabaseUrl}/auth/v1/admin/users?email=eq.${encodeURIComponent(userEmail)}`;
     const authUsersResp = await fetch(authUsersUrl, {
       headers: {
-        'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-        'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'apikey': serviceRoleKey,
         'Content-Type': 'application/json'
       }
     });
@@ -154,12 +165,12 @@ export async function onRequestPost(context) {
     const authUserId = authUsersData[0].id;
 
     // Atualizar senha usando Admin API
-    const updateUrl = `${env.SUPABASE_URL}/auth/v1/admin/users/${authUserId}`;
+    const updateUrl = `${supabaseUrl}/auth/v1/admin/users/${authUserId}`;
     const updateResp = await fetch(updateUrl, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-        'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'apikey': serviceRoleKey,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
