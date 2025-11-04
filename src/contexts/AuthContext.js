@@ -174,6 +174,38 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('auth');
   };
 
+  const refreshUser = async () => {
+    if (!currentUser?.id) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (error) {
+          console.error('Erro ao buscar perfil atualizado:', error);
+          return;
+        }
+
+        if (profile) {
+          setCurrentUser(profile);
+          
+          // Atualizar isAdmin se necessário
+          const newIsAdmin = profile.role === 'admin';
+          if (newIsAdmin !== isAdmin) {
+            setIsAdmin(newIsAdmin);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar dados do usuário:', error);
+    }
+  };
+
   const value = {
     isAuthenticated,
     isAdmin,
