@@ -59,10 +59,39 @@ export async function onRequestPost(context) {
       );
     }
 
-    const userData = await verifyResp.json();
+    let userData;
+    try {
+      userData = await verifyResp.json();
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Erro ao processar resposta da API',
+          detail: 'Resposta não é um JSON válido'
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // A API /auth/v1/user pode retornar { id, ... } ou { user: { id, ... } }
+    const userId = userData?.id || userData?.user?.id;
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Erro ao obter ID do usuário',
+          detail: 'Resposta da API não contém ID do usuário',
+          debug: { 
+            hasId: !!userData?.id,
+            hasUser: !!userData?.user,
+            hasUserId: !!userData?.user?.id,
+            keys: Object.keys(userData || {})
+          }
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
     
     // Verificar se é admin
-    const profileUrl = `${supabaseUrl}/rest/v1/profiles?id=eq.${userData.id}&select=role`;
+    const profileUrl = `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=role`;
     const profileResp = await fetch(profileUrl, {
       headers: {
         'Authorization': `Bearer ${token}`,
