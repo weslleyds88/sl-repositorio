@@ -84,7 +84,7 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, email, full_name, phone, position, role, status, account_status, avatar_url, created_at, observation')
+          .select('id, email, full_name, phone, position, role, status, account_status, avatar_url, created_at')
           .order('created_at', { ascending: false });
         if (error) throw error;
         setAllUsers(data || []);
@@ -219,7 +219,12 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
                             onClick={async () => {
                               try {
                                 if (!supabase) return;
-                                const { data: session } = await supabase.auth.getSession();
+                                let { data: session } = await supabase.auth.getSession();
+                                if (!session?.session) {
+                                  await supabase.auth.refreshSession();
+                                  const refreshed = await supabase.auth.getSession();
+                                  session = refreshed.data;
+                                }
                                 const token = session?.session?.access_token;
                                 if (!token) {
                                   alert('Sessão inválida. Faça login novamente.');
