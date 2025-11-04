@@ -13,6 +13,7 @@ import MemberView from './components/MemberView';
 import Settings from './components/Settings';
 import AdminPanel from './components/AdminPanel';
 import PaymentTickets from './components/PaymentTickets';
+import AthleteProfile from './components/AthleteProfile';
 import { getCurrentMonth, getCurrentMonthObj } from './utils/dateUtils';
 import { supabase } from './lib/supabaseClient';
 import { scheduleCleanupProofs } from './utils/cleanupProofs';
@@ -240,6 +241,27 @@ function AppContent() {
                 payments={payments}
                 onRefresh={refreshData}
                 isAdmin={isAdmin}
+              />
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <AthleteProfile
+                currentUser={currentUser}
+                onUpdate={async () => {
+                  // Recarregar dados do usuário após atualização
+                  if (currentUser?.id) {
+                    const { data: profile } = await supabase
+                      .from('profiles')
+                      .select('*')
+                      .eq('id', currentUser.id)
+                      .single();
+                    if (profile) {
+                      login(isAdmin, profile);
+                    }
+                  }
+                }}
               />
             }
           />

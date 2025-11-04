@@ -214,48 +214,6 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
-                        {isAdmin && (
-                          <button
-                            onClick={async () => {
-                              try {
-                                if (!supabase) return;
-                                let { data: session } = await supabase.auth.getSession();
-                                if (!session?.session) {
-                                  await supabase.auth.refreshSession();
-                                  const refreshed = await supabase.auth.getSession();
-                                  session = refreshed.data;
-                                }
-                                const token = session?.session?.access_token;
-                                if (!token) {
-                                  alert('Sessão inválida. Faça login novamente.');
-                                  return;
-                                }
-                                if (!window.confirm(`Gerar senha temporária para ${member.full_name}?`)) return;
-                                // Cloudflare Pages Function route
-                                const resp = await fetch('/admin-reset-password', {
-                                  method: 'POST',
-                                  headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${token}`
-                                  },
-                                  body: JSON.stringify({ userId: member.id })
-                                });
-                                const json = await resp.json();
-                                if (!resp.ok) throw new Error(json.error || 'Falha ao gerar senha');
-                                const pwd = json.password;
-                                await navigator.clipboard.writeText(pwd).catch(() => {});
-                                alert(`Senha temporária gerada e copiada para a área de transferência:\n\n${pwd}\n\nObs.: O atleta deverá trocá-la no próximo login.`);
-                              } catch (e) {
-                                console.error(e);
-                                alert('Erro ao gerar senha: ' + (e.message || 'desconhecido'));
-                              }
-                            }}
-                            className="text-blue-600 hover:text-blue-900"
-                            title="Gerar senha temporária"
-                          >
-                            🔑 Senha
-                          </button>
-                        )}
                         <button
                           onClick={() => handleEditMember(member)}
                           disabled={!isAdmin}
