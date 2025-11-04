@@ -41,19 +41,16 @@ export async function onRequestPost({ request, env }) {
     }
 
     // Check if requester is admin
-    const profileResp = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${requesterId}&select=role`, {
+    const requesterProfileResp = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${requesterId}&select=role`, {
       headers: {
         'apikey': SERVICE_KEY,
         'Authorization': `Bearer ${SERVICE_KEY}`,
         'Content-Type': 'application/json'
       }
     });
-    if (!profileResp.ok) {
-      return new Response(JSON.stringify({ error: 'Failed to check admin status' }), { status: 500 });
-    }
-    const profiles = await profileResp.json();
-    const profile = Array.isArray(profiles) && profiles.length > 0 ? profiles[0] : null;
-    if (!profile || profile.role !== 'admin') {
+    const requesterProfiles = await requesterProfileResp.json();
+    const requesterProfile = Array.isArray(requesterProfiles) && requesterProfiles.length > 0 ? requesterProfiles[0] : null;
+    if (!requesterProfile || requesterProfile.role !== 'admin') {
       return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
     }
 
@@ -89,8 +86,8 @@ export async function onRequestPost({ request, env }) {
       updateErr = e;
     }
 
-    // If not found, try to resolve the auth user by email and retry
-    if (!updated && updateErr && `${updateErr?.error_description || updateErr?.message || ''}`.toLowerCase().includes('user not found')) {
+    // Fallback: resolver por email (somente atualizar; não criar)
+    if (!updated) {
       // fetch email from profiles
       const profileByIdResp = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=email`, {
         headers: {
@@ -104,6 +101,7 @@ export async function onRequestPost({ request, env }) {
         const profileById = Array.isArray(profileArr) && profileArr.length > 0 ? profileArr[0] : null;
         const email = profileById?.email;
         if (email) {
+          // Try to find auth user by email
           const resp = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?email=${encodeURIComponent(email)}`, {
             headers: {
               'apikey': SERVICE_KEY,
@@ -114,8 +112,9 @@ export async function onRequestPost({ request, env }) {
           if (resp.ok) {
             const arr = await resp.json();
             const authUser = Array.isArray(arr) ? arr[0] : null;
-            if (authUser?.id) {
-              const updateResp2 = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${authUser.id}`, {
+            const authUserId = authUser?.id || null;
+            if (authUserId) {
+              const updateResp2 = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${authUserId}`, {
                 method: 'PUT',
                 headers: {
                   'apikey': SERVICE_KEY,
@@ -133,6 +132,8 @@ export async function onRequestPost({ request, env }) {
                 const errData2 = await updateResp2.json().catch(() => ({}));
                 updateErr = errData2;
               }
+            } else {
+              updateErr = { error: 'User not found by email' };
             }
           }
         }
@@ -141,7 +142,7 @@ export async function onRequestPost({ request, env }) {
 
     if (!updated) {
       const msg = updateErr?.error_description || updateErr?.message || 'Failed to set password (user not found)';
-      return new Response(JSON.stringify({ error: msg }), { status: 404 });
+      return new Response(JSON.stringify({ error: msg, detail: updateErr }), { status: 404 });
     }
 
     // Flag must_change_password on profile (if column exists)
