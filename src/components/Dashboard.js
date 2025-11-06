@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '../utils/dateUtils';
 import ExportButtons from './ExportButtons';
@@ -25,18 +25,6 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
     }
   };
 
-  const [stats, setStats] = useState({
-    totalAthletes: 0,
-    totalIncome: 0,
-    totalExpenses: 0,
-    totalPaidExpenses: 0,
-    pendingPayments: 0,
-    paidPayments: 0,
-    balance: 0,
-    cashAvailable: 0
-  });
-
-  const [recentPayments, setRecentPayments] = useState([]);
   const [athleteStats, setAthleteStats] = useState({
     myPayments: 0,
     myPaidPayments: 0,
@@ -50,12 +38,8 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
     myTotalOverdue: 0
   });
 
-  useEffect(() => {
-    calculateStats();
-    loadRecentPayments();
-  }, [members, payments, selectedMonth, selectedYear, currentMonth]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const calculateStats = () => {
+  // Declarar funções antes de usá-las nos hooks
+  const calculateAdminStats = useCallback(() => {
     // Estatísticas gerais (para admin)
     if (isAdmin) {
       // Filtrar pagamentos de acordo com os filtros de mês e ano
@@ -151,7 +135,7 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
       // Caixa disponível = Receitas dos atletas - Saídas de caixa
       const cashAvailable = allTimeIncome - allTimeCashOutflows;
 
-      setStats({
+      return {
         totalAthletes: members.length,
         totalIncome,
         totalExpenses, // Total de despesas (pagas + pendentes)
@@ -160,139 +144,135 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
         paidPayments: paidAthletePayments, // Apenas atletas que pagaram
         balance,
         cashAvailable
-      });
-    } else {
-      // Estatísticas para atleta - APENAS pagamentos do usuário logado
-      console.log('👤 Dashboard do Atleta - Current User:', currentUser);
-      console.log('👤 ID do usuário logado:', currentUser?.id);
-      console.log('📋 Total de pagamentos no sistema:', payments.length);
-      
-      // Se não tem currentUser, não mostrar nada
-      if (!currentUser || !currentUser.id) {
-        console.warn('⚠️ Usuário não identificado, aguardando login...');
-        setAthleteStats({
-          myPayments: 0,
-          myPaidPayments: 0,
-          myPendingPayments: 0,
-          myTotalPending: 0,
-          myPartialPayments: 0,
-          myTotalPartial: 0,
-          myDuePayments: 0,
-          myOverduePayments: 0,
-          myTotalDue: 0,
-          myTotalOverdue: 0
-        });
-        return;
-      }
-      
-      // Filtrar APENAS os pagamentos deste usuário específico
-      const myPayments = payments.filter(p => {
-        const isMyPayment = p.member_id === currentUser.id;
-        if (isMyPayment) {
-          console.log('✅ Pagamento do usuário encontrado:', p);
-        }
-        return isMyPayment;
-      });
-      
-      console.log('🎯 Pagamentos filtrados para este usuário:', myPayments.length);
-      
-      // Separar pagamentos pendentes em "a vencer" e "vencidos"
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Zerar horas para comparação correta
-      
-      // Incluir cobranças PENDING e PARTIAL (que ainda não foram 100% pagas)
-      const pendingPayments = myPayments.filter(p => p.status === 'pending' || p.status === 'partial');
-      const duePayments = pendingPayments.filter(p => {
-        const dueDate = new Date(p.due_date);
-        dueDate.setHours(0, 0, 0, 0);
-        return dueDate >= today;
-      });
-      const overduePayments = pendingPayments.filter(p => {
-        const dueDate = new Date(p.due_date);
-        dueDate.setHours(0, 0, 0, 0);
-        return dueDate < today;
-      });
-      
-      const myTotalPayments = myPayments.length;
-      const myPaidPayments = myPayments.filter(p => p.status === 'paid').length;
-      const myPendingPayments = pendingPayments.length;
-      
-      // Total Pendente: considerar valor restante para parciais
-      const myTotalPending = pendingPayments.reduce((sum, p) => {
-        if (p.status === 'pending') {
-          return sum + parseFloat(p.amount || 0);
-        } else if (p.status === 'partial' && p.paid_amount) {
-          const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
-          return sum + remaining;
-        }
-        return sum;
-      }, 0);
-      
-      const myDuePayments = duePayments.length;
-      const myOverduePayments = overduePayments.length;
-      
-      // Total A Vencer: considerar valor restante para parciais
-      const myTotalDue = duePayments.reduce((sum, p) => {
-        if (p.status === 'pending') {
-          return sum + parseFloat(p.amount || 0);
-        } else if (p.status === 'partial' && p.paid_amount) {
-          const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
-          return sum + remaining;
-        }
-        return sum;
-      }, 0);
-      
-      // Total Vencido: considerar valor restante para parciais
-      const myTotalOverdue = overduePayments.reduce((sum, p) => {
-        if (p.status === 'pending') {
-          return sum + parseFloat(p.amount || 0);
-        } else if (p.status === 'partial' && p.paid_amount) {
-          const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
-          return sum + remaining;
-        }
-        return sum;
-      }, 0);
-      
-      // Adicionar informações de pagamentos parciais
-      const partialPayments = myPayments.filter(p => p.status === 'partial');
-      const myPartialPayments = partialPayments.length;
-      const myTotalPartial = partialPayments.reduce((sum, p) => sum + parseFloat(p.paid_amount || 0), 0);
-
-      console.log('📊 Estatísticas FINAIS do atleta:', {
-        userId: currentUser.id,
-        totalPayments: myTotalPayments,
-        paid: myPaidPayments,
-        pending: myPendingPayments,
-        totalPending: myTotalPending,
-        due: myDuePayments,
-        overdue: myOverduePayments,
-        totalDue: myTotalDue,
-        totalOverdue: myTotalOverdue
-      });
-
-      setAthleteStats({
-        myPayments: myTotalPayments,
-        myPaidPayments,
-        myPendingPayments,
-        myTotalPending,
-        myPartialPayments,
-        myTotalPartial,
-        myDuePayments,
-        myOverduePayments,
-        myTotalDue,
-        myTotalOverdue
-      });
+      };
     }
-  };
+    return {
+      totalAthletes: 0,
+      totalIncome: 0,
+      totalExpenses: 0,
+      totalPaidExpenses: 0,
+      pendingPayments: 0,
+      paidPayments: 0,
+      balance: 0,
+      cashAvailable: 0
+    };
+  }, [isAdmin, members, payments, selectedMonth, selectedYear]);
 
-  const loadRecentPayments = async () => {
-    const recent = payments
+  const calculateAthleteStats = useCallback(() => {
+    if (!currentUser || !currentUser.id) {
+      setAthleteStats({
+        myPayments: 0,
+        myPaidPayments: 0,
+        myPendingPayments: 0,
+        myTotalPending: 0,
+        myPartialPayments: 0,
+        myTotalPartial: 0,
+        myDuePayments: 0,
+        myOverduePayments: 0,
+        myTotalDue: 0,
+        myTotalOverdue: 0
+      });
+      return;
+    }
+    
+    // Filtrar APENAS os pagamentos deste usuário específico
+    const myPayments = payments.filter(p => p.member_id === currentUser.id);
+    
+    // Separar pagamentos pendentes em "a vencer" e "vencidos"
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Zerar horas para comparação correta
+    
+    // Incluir cobranças PENDING e PARTIAL (que ainda não foram 100% pagas)
+    const pendingPayments = myPayments.filter(p => p.status === 'pending' || p.status === 'partial');
+    const duePayments = pendingPayments.filter(p => {
+      const dueDate = new Date(p.due_date);
+      dueDate.setHours(0, 0, 0, 0);
+      return dueDate >= today;
+    });
+    const overduePayments = pendingPayments.filter(p => {
+      const dueDate = new Date(p.due_date);
+      dueDate.setHours(0, 0, 0, 0);
+      return dueDate < today;
+    });
+    
+    const myTotalPayments = myPayments.length;
+    const myPaidPayments = myPayments.filter(p => p.status === 'paid').length;
+    const myPendingPayments = pendingPayments.length;
+    
+    // Total Pendente: considerar valor restante para parciais
+    const myTotalPending = pendingPayments.reduce((sum, p) => {
+      if (p.status === 'pending') {
+        return sum + parseFloat(p.amount || 0);
+      } else if (p.status === 'partial' && p.paid_amount) {
+        const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
+        return sum + remaining;
+      }
+      return sum;
+    }, 0);
+    
+    const myDuePayments = duePayments.length;
+    const myOverduePayments = overduePayments.length;
+    
+    // Total A Vencer: considerar valor restante para parciais
+    const myTotalDue = duePayments.reduce((sum, p) => {
+      if (p.status === 'pending') {
+        return sum + parseFloat(p.amount || 0);
+      } else if (p.status === 'partial' && p.paid_amount) {
+        const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
+        return sum + remaining;
+      }
+      return sum;
+    }, 0);
+    
+    // Total Vencido: considerar valor restante para parciais
+    const myTotalOverdue = overduePayments.reduce((sum, p) => {
+      if (p.status === 'pending') {
+        return sum + parseFloat(p.amount || 0);
+      } else if (p.status === 'partial' && p.paid_amount) {
+        const remaining = parseFloat(p.amount || 0) - parseFloat(p.paid_amount || 0);
+        return sum + remaining;
+      }
+      return sum;
+    }, 0);
+    
+    // Adicionar informações de pagamentos parciais
+    const partialPayments = myPayments.filter(p => p.status === 'partial');
+    const myPartialPayments = partialPayments.length;
+    const myTotalPartial = partialPayments.reduce((sum, p) => sum + parseFloat(p.paid_amount || 0), 0);
+
+    setAthleteStats({
+      myPayments: myTotalPayments,
+      myPaidPayments,
+      myPendingPayments,
+      myTotalPending,
+      myPartialPayments,
+      myTotalPartial,
+      myDuePayments,
+      myOverduePayments,
+      myTotalDue,
+      myTotalOverdue
+    });
+  }, [payments, currentUser]);
+
+  // Memoizar cálculos pesados para evitar recálculos desnecessários
+  const stats = useMemo(() => {
+    return calculateAdminStats();
+  }, [calculateAdminStats]);
+
+  // Calcular estatísticas do atleta separadamente
+  useEffect(() => {
+    if (!isAdmin && currentUser?.id) {
+      calculateAthleteStats();
+    }
+  }, [isAdmin, currentUser, calculateAthleteStats]);
+
+  const recentPayments = useMemo(() => {
+    return payments
       .filter(p => p.paid_at)
       .sort((a, b) => new Date(b.paid_at) - new Date(a.paid_at))
       .slice(0, 5);
+  }, [payments]);
 
-    setRecentPayments(recent);
-  };
 
   // Função removida - não está sendo usada
   // const handleMarkPaid = async (paymentId) => {

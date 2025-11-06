@@ -31,6 +31,7 @@ function AppContent() {
   });
   const [members, setMembers] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [loadingData, setLoadingData] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(getCurrentMonth());
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [filters, setFilters] = useState({
@@ -52,6 +53,7 @@ function AppContent() {
   }, [isAuthenticated, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadData = async () => {
+    setLoadingData(true);
     try {
       const membersPromise = isAdmin ? db.listMembers() : Promise.resolve([]);
       const paymentsPromise = (isAdmin || !currentUser?.id)
@@ -66,6 +68,8 @@ function AppContent() {
       setPayments(paymentsData);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
+    } finally {
+      setLoadingData(false);
     }
   };
 
@@ -94,13 +98,15 @@ function AppContent() {
     }
   };
 
-  // Se ainda carregando autenticação
-  if (loading) {
+  // Se ainda carregando autenticação ou dados iniciais
+  if (loading || loadingData) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Carregando...</p>
+          <p className="mt-4 text-gray-600">
+            {loading ? 'Carregando...' : 'Carregando dados...'}
+          </p>
         </div>
       </div>
     );

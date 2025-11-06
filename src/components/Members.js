@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import MemberForm from './MemberForm';
 import { formatDate } from '../utils/dateUtils';
 
@@ -7,45 +7,35 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
   const [editingMember, setEditingMember] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [allUsers, setAllUsers] = useState(null); // quando admin, carrega lista completa com avatar
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc' ou 'desc'
 
   const sourceList = allUsers !== null && isAdmin ? allUsers : members;
 
-  // Debug: Verificar dados carregados
-  useEffect(() => {
-    console.log('Members carregados:', members);
-    console.log('AllUsers carregados:', allUsers);
-    console.log('isAdmin:', isAdmin);
-  }, [members, allUsers, isAdmin]);
+  // Memoizar filtros e ordenação para evitar recálculos desnecessários
+  const sortedAndFilteredMembers = useMemo(() => {
+    if (!sourceList || sourceList.length === 0) return [];
+    
+    const filtered = sourceList.filter(member =>
+      member && member.full_name && (
+        member.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (member.phone && member.phone.includes(searchTerm))
+      )
+    );
 
-  const filteredMembers = sourceList.filter(member =>
-    member && member.full_name && (
-      member.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (member.phone && member.phone.includes(searchTerm))
-    )
-  );
-
-  const sortedAndFilteredMembers = filteredMembers
-    .filter(member => member && member.id) // Proteção adicional
-    .sort((a, b) => {
-      const nameA = a.full_name?.toLowerCase() || '';
-      const nameB = b.full_name?.toLowerCase() || '';
-      if (sortOrder === 'asc') {
-        return nameA.localeCompare(nameB);
-      } else {
-        return nameB.localeCompare(nameA);
-      }
-    });
-
-  // Debug: Verificar lista processada
-  useEffect(() => {
-    console.log('Lista de members processada:', sortedAndFilteredMembers.map(m => ({
-      id: m.id,
-      name: m.full_name,
-      hasId: !!m.id
-    })));
-  }, [sortedAndFilteredMembers]);
+    return filtered
+      .filter(member => member && member.id) // Proteção adicional
+      .sort((a, b) => {
+        const nameA = a.full_name?.toLowerCase() || '';
+        const nameB = b.full_name?.toLowerCase() || '';
+        if (sortOrder === 'asc') {
+          return nameA.localeCompare(nameB);
+        } else {
+          return nameB.localeCompare(nameA);
+        }
+      });
+  }, [sourceList, searchTerm, sortOrder]);
 
   // Removido: criação manual pelo admin (cadastro vem pelo fluxo de registro)
 
@@ -101,16 +91,19 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
   useEffect(() => {
     const loadAll = async () => {
       if (!isAdmin || !supabase) return;
+      setLoadingUsers(true);
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, email, full_name, phone, position, role, status, account_status, avatar_url, created_at')
+          .select('id, email, full_name, phone, position, role, status, account_status, avatar_url, created_at, observation')
           .order('created_at', { ascending: false });
         if (error) throw error;
         setAllUsers(data || []);
       } catch (e) {
         console.error('Erro ao carregar usuários:', e);
         setAllUsers(null);
+      } finally {
+        setLoadingUsers(false);
       }
     };
     loadAll();
@@ -151,7 +144,12 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
       </div>
 
       <div className="card">
-        {sortedAndFilteredMembers.length > 0 ? (
+        {loadingUsers ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Carregando atletas...</p>
+          </div>
+        ) : sortedAndFilteredMembers.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
