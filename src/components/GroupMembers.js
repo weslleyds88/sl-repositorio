@@ -397,9 +397,9 @@ function GroupMembers({ group, onClose }) {
                   <div key={member.user_id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
                     <div>
                       <p className="font-medium text-gray-900">{member.profiles?.full_name || 'Nome não disponível'}</p>
-                      <p className="text-sm text-gray-500">{member.profiles?.email || 'Email não disponível'}</p>
-                      {member.profiles?.phone && (
-                        <p className="text-sm text-gray-600">📱 {member.profiles.phone}</p>
+                      <p className="text-sm text-gray-500">{member.profiles?.phone || 'Telefone não disponível'}</p>
+                      {member.profiles?.email && (
+                        <p className="text-sm text-gray-400 text-xs">📧 {member.profiles.email}</p>
                       )}
                       {member.profiles?.position && (
                         <span className="text-xs text-blue-600">{member.profiles.position}</span>
@@ -482,9 +482,9 @@ function GroupMembers({ group, onClose }) {
                   <div key={user.id} className="flex items-center justify-between p-2 bg-green-50 rounded-lg">
                     <div>
                       <p className="font-medium text-gray-900">{user.full_name}</p>
-                      <p className="text-sm text-gray-500">{user.email}</p>
-                      {user.phone && (
-                        <p className="text-sm text-gray-600">📱 {user.phone}</p>
+                      <p className="text-sm text-gray-500">{user.phone || 'Telefone não disponível'}</p>
+                      {user.email && (
+                        <p className="text-sm text-gray-400 text-xs">📧 {user.email}</p>
                       )}
                       <div className="flex items-center space-x-2 mt-1">
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${

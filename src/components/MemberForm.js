@@ -20,12 +20,31 @@ const MemberForm = ({ member, onSubmit, onCancel }) => {
 
   useEffect(() => {
     if (member) {
+      // Formatar birth_date para o input type="date" (YYYY-MM-DD)
+      let formattedBirthDate = '';
+      if (member.birth_date) {
+        // Se já está no formato correto, usar direto
+        if (typeof member.birth_date === 'string' && member.birth_date.match(/^\d{4}-\d{2}-\d{2}/)) {
+          formattedBirthDate = member.birth_date.split('T')[0]; // Remove hora se houver
+        } else {
+          // Tentar converter de outros formatos
+          try {
+            const date = new Date(member.birth_date);
+            if (!isNaN(date.getTime())) {
+              formattedBirthDate = date.toISOString().split('T')[0];
+            }
+          } catch (e) {
+            console.warn('Erro ao formatar data de nascimento:', e);
+          }
+        }
+      }
+
       setFormData({
         full_name: member.full_name || member.name || '',
         phone: member.phone || '',
         observation: member.observation || '',
         position: member.position || '',
-        birth_date: member.birth_date || '',
+        birth_date: formattedBirthDate,
         rg: member.rg || '',
         region: member.region || '',
         gender: member.gender || '',

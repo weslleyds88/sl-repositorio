@@ -95,7 +95,7 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, email, full_name, phone, position, role, status, account_status, avatar_url, created_at, observation')
+          .select('id, email, full_name, phone, position, role, status, account_status, avatar_url, created_at, observation, birth_date, rg, region, gender, responsible_name, responsible_phone')
           .order('created_at', { ascending: false });
         if (error) throw error;
         setAllUsers(data || []);
@@ -155,10 +155,9 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telefone</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Função</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telefone</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Observação
                   </th>
@@ -216,7 +215,7 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {member.email || '-'}
+                      {member.phone || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${
@@ -232,9 +231,6 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
                       }`}>
                         {member.role === 'admin' ? 'Administrador' : 'Jogador'}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {member.phone || '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
                       {member.observation || '-'}

@@ -1549,7 +1549,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                       </div>
                       <div>
                         <h4 className="font-medium text-gray-900">{member.full_name}</h4>
-                        <p className="text-sm text-gray-500">{member.email}</p>
+                        <p className="text-sm text-gray-500">{member.phone || '-'}</p>
                       </div>
                     </div>
                     <div className="text-right">
