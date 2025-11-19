@@ -15,6 +15,7 @@ import AdminPanel from './components/AdminPanel';
 import PaymentTickets from './components/PaymentTickets';
 import AthleteProfile from './components/AthleteProfile';
 import ForceChangePassword from './components/ForceChangePassword';
+import MaintenanceMode from './components/MaintenanceMode';
 import { getCurrentMonth, getCurrentMonthObj } from './utils/dateUtils';
 import { supabase } from './lib/supabaseClient';
 import { scheduleCleanupProofs } from './utils/cleanupProofs';
@@ -293,6 +294,21 @@ function AppContent() {
 }
 
 function App() {
+  // Verificar modo de manutenção ANTES de renderizar qualquer coisa
+  const isMaintenanceMode = process.env.REACT_APP_MAINTENANCE_MODE === 'true';
+  
+  // Debug: verificar se a variável está sendo lida (remover em produção se necessário)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔧 Modo de Manutenção:', isMaintenanceMode);
+    console.log('🔧 REACT_APP_MAINTENANCE_MODE:', process.env.REACT_APP_MAINTENANCE_MODE);
+  }
+  
+  // Se estiver em manutenção, mostrar apenas a tela de manutenção
+  // Isso bloqueia TUDO, incluindo login e autenticação
+  if (isMaintenanceMode) {
+    return <MaintenanceMode />;
+  }
+
   return (
     <AuthProvider>
       <Router>
