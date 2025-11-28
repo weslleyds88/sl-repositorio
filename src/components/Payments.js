@@ -27,6 +27,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
   const [summaryYear, setSummaryYear] = useState('all'); // 'all' ou '2024', '2025', etc.
   const [summaryGroups, setSummaryGroups] = useState([]); // Array de IDs dos grupos selecionados
   const [showGroupFilter, setShowGroupFilter] = useState(false); // Controla a exibição do dropdown de grupos
+  const [groupSearchTerm, setGroupSearchTerm] = useState(''); // Busca dentro do dropdown de grupos
   
   // Estados para filtros da Lista de Pagamentos
   const [listMonth, setListMonth] = useState('all'); // 'all' ou '0' a '11'
@@ -82,6 +83,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
     const handleClickOutside = (event) => {
       if (showGroupFilter && !event.target.closest('.group-filter-container')) {
         setShowGroupFilter(false);
+        setGroupSearchTerm(''); // Limpar busca ao fechar
       }
     };
 
@@ -1364,42 +1366,12 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
       {/* Conteúdo da Aba: Resumo por Atleta */}
       {activeTab === 'summary' && isAdmin && (
         <div className="mt-8">
-          <div className="flex justify-between items-center mb-6">
+          {/* Título e Filtro de Grupo na mesma linha */}
+          <div className="flex items-center gap-4 mb-6">
             <h3 className="text-lg font-medium text-gray-900">Resumo por Atleta</h3>
             
-            {/* Filtros: Barra de Pesquisa + Grupo + Ano */}
-            <div className="flex gap-3">
-              {/* Barra de Pesquisa */}
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="🔍 Buscar por nome ou telefone..."
-                  value={summarySearchTerm}
-                  onChange={(e) => setSummarySearchTerm(e.target.value)}
-                  className="px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 w-64"
-                />
-                <svg 
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                {summarySearchTerm && (
-                  <button
-                    onClick={() => setSummarySearchTerm('')}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-
-              {/* Filtro de Grupo (Múltipla Seleção) */}
-              <div className="relative group-filter-container">
+            {/* Filtro de Grupo (Múltipla Seleção) */}
+            <div className="relative group-filter-container">
                 <button
                   type="button"
                   onClick={() => setShowGroupFilter(!showGroupFilter)}
@@ -1419,86 +1391,155 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                 </button>
                 
                 {showGroupFilter && (
-                  <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    <div className="p-2">
-                      <div className="flex items-center justify-between mb-2 pb-2 border-b">
+                  <div className="absolute z-50 mt-1 w-[450px] bg-white border border-gray-300 rounded-lg shadow-lg max-h-80 overflow-hidden flex flex-col">
+                    <div className="p-3 border-b">
+                      <div className="flex items-center justify-between mb-3">
                         <span className="text-sm font-medium text-gray-700">Selecionar grupos</span>
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             setSummaryGroups([]);
+                            setGroupSearchTerm('');
                           }}
-                          className="text-xs text-blue-600 hover:text-blue-800"
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium"
                         >
                           Limpar
                         </button>
                       </div>
-                      <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer rounded">
+                      {/* Barra de pesquisa */}
+                      <div className="relative">
                         <input
-                          type="checkbox"
-                          checked={summaryGroups.length === 0}
+                          type="text"
+                          placeholder="Buscar grupos..."
+                          value={groupSearchTerm}
                           onChange={(e) => {
-                            if (e.target.checked) {
-                              // Quando marca "Todos os grupos", limpar seleção
-                              setSummaryGroups([]);
-                            } else {
-                              // Se desmarcar "Todos os grupos", não fazer nada (mantém vazio)
-                              // Isso evita que o usuário desmarque acidentalmente
-                            }
+                            e.stopPropagation();
+                            setGroupSearchTerm(e.target.value);
                           }}
-                          className="mr-2 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
                         />
-                        <span className="text-sm text-gray-700">👥 Todos os grupos</span>
-                      </label>
-                      {groups
-                        .sort((a, b) => a.name.localeCompare(b.name))
-                        .map(group => (
-                          <label key={group.id} className="flex items-center p-2 hover:bg-gray-50 cursor-pointer rounded">
-                            <input
-                              type="checkbox"
-                              checked={summaryGroups.includes(group.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  // Quando marca um grupo específico, adiciona à lista
-                                  setSummaryGroups([...summaryGroups, group.id]);
-                                } else {
-                                  // Quando desmarca, remove da lista
-                                  setSummaryGroups(summaryGroups.filter(id => id !== group.id));
-                                }
-                              }}
-                              className="mr-2 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                            />
-                            <span className="text-sm text-gray-700">{group.name}</span>
-                          </label>
-                        ))}
+                        <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                    <div className="overflow-y-auto max-h-60">
+                      <div className="p-2">
+                        <label className="flex items-center p-2.5 hover:bg-gray-50 cursor-pointer rounded">
+                          <input
+                            type="checkbox"
+                            checked={summaryGroups.length === 0}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                // Quando marca "Todos os grupos", limpar seleção
+                                setSummaryGroups([]);
+                                setGroupSearchTerm('');
+                              } else {
+                                // Se desmarcar "Todos os grupos", não fazer nada (mantém vazio)
+                                // Isso evita que o usuário desmarque acidentalmente
+                              }
+                            }}
+                            className="mr-3 h-5 w-5 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                          />
+                          <span className="text-sm font-medium text-gray-700">👥 Todos os grupos</span>
+                        </label>
+                        {groups
+                          .filter(group => {
+                            // Filtrar grupos baseado na busca
+                            if (!groupSearchTerm.trim()) return true;
+                            const searchLower = groupSearchTerm.toLowerCase().trim();
+                            return group.name.toLowerCase().includes(searchLower);
+                          })
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .map(group => (
+                            <label key={group.id} className="flex items-center p-2.5 hover:bg-gray-50 cursor-pointer rounded">
+                              <input
+                                type="checkbox"
+                                checked={summaryGroups.includes(group.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    // Quando marca um grupo específico, adiciona à lista
+                                    setSummaryGroups([...summaryGroups, group.id]);
+                                  } else {
+                                    // Quando desmarca, remove da lista
+                                    setSummaryGroups(summaryGroups.filter(id => id !== group.id));
+                                  }
+                                }}
+                                className="mr-3 h-5 w-5 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                              />
+                              <span className="text-sm text-gray-700">{group.name}</span>
+                            </label>
+                          ))}
+                        {groups.filter(group => {
+                          if (!groupSearchTerm.trim()) return false;
+                          const searchLower = groupSearchTerm.toLowerCase().trim();
+                          return group.name.toLowerCase().includes(searchLower);
+                        }).length === 0 && groupSearchTerm.trim() && (
+                          <div className="p-3 text-center text-sm text-gray-500">
+                            Nenhum grupo encontrado
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
+          </div>
 
-              {/* Filtro de Ano */}
-              <select
-                value={summaryYear}
-                onChange={(e) => setSummaryYear(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          {/* Filtros: Barra de Pesquisa + Ano */}
+          <div className="flex gap-3 mb-6">
+            {/* Barra de Pesquisa */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="🔍 Buscar por nome ou telefone..."
+                value={summarySearchTerm}
+                onChange={(e) => setSummarySearchTerm(e.target.value)}
+                className="px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 w-64"
+              />
+              <svg 
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
               >
-                <option value="all">📅 Todos os anos</option>
-                {(() => {
-                  // Gerar lista de anos disponíveis nos pagamentos
-                  const years = new Set();
-                  payments.forEach(p => {
-                    if (p.due_date) {
-                      const year = p.due_date.substring(0, 4);
-                      years.add(year);
-                    }
-                  });
-                  return Array.from(years).sort((a, b) => b.localeCompare(a)).map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ));
-                })()}
-              </select>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {summarySearchTerm && (
+                <button
+                  onClick={() => setSummarySearchTerm('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
+
+            {/* Filtro de Ano */}
+            <select
+              value={summaryYear}
+              onChange={(e) => setSummaryYear(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="all">📅 Todos os anos</option>
+              {(() => {
+                // Gerar lista de anos disponíveis nos pagamentos
+                const years = new Set();
+                payments.forEach(p => {
+                  if (p.due_date) {
+                    const year = p.due_date.substring(0, 4);
+                    years.add(year);
+                  }
+                });
+                return Array.from(years).sort((a, b) => b.localeCompare(a)).map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ));
+              })()}
+            </select>
           </div>
 
           {/* Indicador de Filtros Ativos */}
@@ -1544,16 +1585,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {(() => {
-              // Debug temporário
-              console.log('🔍 Resumo por Atleta - Debug:', {
-                totalMembers: members.length,
-                summaryGroups: summaryGroups,
-                summaryGroupsLength: summaryGroups.length,
-                filteredPayments: filteredPayments.length
-              });
-              return null;
-            })()}
             {members
               .filter(member => {
                 // Filtrar por nome OU telefone
