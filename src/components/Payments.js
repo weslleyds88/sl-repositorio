@@ -25,7 +25,8 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
   // Estados para o Resumo por Atleta
   const [summarySearchTerm, setSummarySearchTerm] = useState('');
   const [summaryYear, setSummaryYear] = useState('all'); // 'all' ou '2024', '2025', etc.
-  const [summaryGroup, setSummaryGroup] = useState('all'); // 'all' ou ID do grupo
+  const [summaryGroups, setSummaryGroups] = useState([]); // Array de IDs dos grupos selecionados
+  const [showGroupFilter, setShowGroupFilter] = useState(false); // Controla a exibição do dropdown de grupos
   
   // Estados para filtros da Lista de Pagamentos
   const [listMonth, setListMonth] = useState('all'); // 'all' ou '0' a '11'
@@ -75,6 +76,20 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
       loadGroups();
     }
   }, [isAdmin, loadGroups]);
+
+  // Fechar dropdown de grupos ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showGroupFilter && !event.target.closest('.group-filter-container')) {
+        setShowGroupFilter(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showGroupFilter]);
 
   // Filtrar pagamentos baseado na visão (admin vs atleta)
   const filteredPayments = useMemo(() => payments.filter(p => {
@@ -1383,21 +1398,84 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                 )}
               </div>
 
-              {/* Filtro de Grupo */}
-              <select
-                value={summaryGroup}
-                onChange={(e) => setSummaryGroup(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 min-w-[200px]"
-              >
-                <option value="all">👥 Todos os grupos</option>
-                {groups
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map(group => (
-                    <option key={group.id} value={group.id}>
-                      {group.name}
-                    </option>
-                  ))}
-              </select>
+              {/* Filtro de Grupo (Múltipla Seleção) */}
+              <div className="relative group-filter-container">
+                <button
+                  type="button"
+                  onClick={() => setShowGroupFilter(!showGroupFilter)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 min-w-[200px] text-left bg-white flex items-center justify-between"
+                >
+                  <span>
+                    {summaryGroups.length === 0 
+                      ? '👥 Todos os grupos' 
+                      : summaryGroups.length === 1
+                      ? groups.find(g => g.id === summaryGroups[0])?.name || '1 grupo'
+                      : `${summaryGroups.length} grupos selecionados`
+                    }
+                  </span>
+                  <svg className={`w-5 h-5 transition-transform ${showGroupFilter ? 'transform rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {showGroupFilter && (
+                  <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <div className="p-2">
+                      <div className="flex items-center justify-between mb-2 pb-2 border-b">
+                        <span className="text-sm font-medium text-gray-700">Selecionar grupos</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSummaryGroups([]);
+                          }}
+                          className="text-xs text-blue-600 hover:text-blue-800"
+                        >
+                          Limpar
+                        </button>
+                      </div>
+                      <label className="flex items-center p-2 hover:bg-gray-50 cursor-pointer rounded">
+                        <input
+                          type="checkbox"
+                          checked={summaryGroups.length === 0}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              // Quando marca "Todos os grupos", limpar seleção
+                              setSummaryGroups([]);
+                            } else {
+                              // Se desmarcar "Todos os grupos", não fazer nada (mantém vazio)
+                              // Isso evita que o usuário desmarque acidentalmente
+                            }
+                          }}
+                          className="mr-2 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                        />
+                        <span className="text-sm text-gray-700">👥 Todos os grupos</span>
+                      </label>
+                      {groups
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map(group => (
+                          <label key={group.id} className="flex items-center p-2 hover:bg-gray-50 cursor-pointer rounded">
+                            <input
+                              type="checkbox"
+                              checked={summaryGroups.includes(group.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  // Quando marca um grupo específico, adiciona à lista
+                                  setSummaryGroups([...summaryGroups, group.id]);
+                                } else {
+                                  // Quando desmarca, remove da lista
+                                  setSummaryGroups(summaryGroups.filter(id => id !== group.id));
+                                }
+                              }}
+                              className="mr-2 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                            />
+                            <span className="text-sm text-gray-700">{group.name}</span>
+                          </label>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Filtro de Ano */}
               <select
@@ -1424,7 +1502,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           </div>
 
           {/* Indicador de Filtros Ativos */}
-          {(summarySearchTerm || summaryYear !== 'all' || summaryGroup !== 'all') && (
+          {(summarySearchTerm || summaryYear !== 'all' || summaryGroups.length > 0) && (
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center flex-wrap gap-2">
@@ -1437,9 +1515,12 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                       Busca: "{summarySearchTerm}"
                     </span>
                   )}
-                  {summaryGroup !== 'all' && (
+                  {summaryGroups.length > 0 && (
                     <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm font-medium">
-                      Grupo: {groups.find(g => g.id === summaryGroup)?.name || summaryGroup}
+                      {summaryGroups.length === 1 
+                        ? `Grupo: ${groups.find(g => g.id === summaryGroups[0])?.name || summaryGroups[0]}`
+                        : `${summaryGroups.length} grupos selecionados`
+                      }
                     </span>
                   )}
                   {summaryYear !== 'all' && (
@@ -1452,7 +1533,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                   onClick={() => {
                     setSummarySearchTerm('');
                     setSummaryYear('all');
-                    setSummaryGroup('all');
+                    setSummaryGroups([]);
                   }}
                   className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                 >
@@ -1463,6 +1544,16 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {(() => {
+              // Debug temporário
+              console.log('🔍 Resumo por Atleta - Debug:', {
+                totalMembers: members.length,
+                summaryGroups: summaryGroups,
+                summaryGroupsLength: summaryGroups.length,
+                filteredPayments: filteredPayments.length
+              });
+              return null;
+            })()}
             {members
               .filter(member => {
                 // Filtrar por nome OU telefone
@@ -1482,10 +1573,16 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                 // Filtrar pagamentos do membro
                 let memberPayments = filteredPayments.filter(p => p.member_id === member.id);
                 
-                // Filtrar por grupo se não for "all"
-                if (summaryGroup !== 'all') {
-                  memberPayments = memberPayments.filter(p => p.group_id === summaryGroup);
+                // Filtrar por grupos selecionados (se houver seleção)
+                // Quando há grupos selecionados, mostrar apenas pagamentos desses grupos
+                // Quando não há seleção (array vazio), mostrar todos os pagamentos (incluindo os sem grupo)
+                if (summaryGroups.length > 0) {
+                  memberPayments = memberPayments.filter(p => {
+                    // Incluir apenas pagamentos que têm group_id nos grupos selecionados
+                    return p.group_id && summaryGroups.includes(p.group_id);
+                  });
                 }
+                // Se summaryGroups.length === 0, não filtra nada - mostra todos os pagamentos
                 
                 // Filtrar por ano se não for "all"
                 if (summaryYear !== 'all') {
@@ -1494,6 +1591,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                   );
                 }
                 
+                // Se não houver pagamentos após os filtros, não exibir o membro
                 if (memberPayments.length === 0) return null;
 
               // Calcular valores corretos (usando amount, não displayAmount)
