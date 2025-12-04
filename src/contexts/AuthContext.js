@@ -34,14 +34,30 @@ export function AuthProvider({ children }) {
     if (!currentUser?.id) return true;
 
     try {
-      const { data: profile, error } = await supabase
+      // Primeiro tentar buscar o perfil pelo ID do auth user
+      let { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('account_status, role')
         .eq('id', currentUser.id)
         .single();
 
-      if (error) {
-        console.error('Erro ao verificar status da conta:', error);
+      // Se não encontrar ou der erro (múltiplos perfis), buscar por email
+      if (profileError && (profileError.code === 'PGRST116' || profileError.code === '23505')) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('account_status, role')
+          .eq('email', currentUser.email)
+          .order('created_at', { ascending: false });
+
+        if (!profilesError && profiles && profiles.length > 0) {
+          // Usar o perfil mais recente ou o aprovado
+          profile = profiles.find(p => p.status === 'approved') || profiles[0];
+          profileError = null;
+        }
+      }
+
+      if (profileError || !profile) {
+        console.error('Erro ao verificar status da conta:', profileError);
         return true; // Em caso de erro, permitir continuar
       }
 

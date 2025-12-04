@@ -10,35 +10,71 @@ class SupabaseAdapter {
   // MEMBERS
   async listMembers() {
     try {
-      const { data, error } = await this.supabase
+      // Buscar apenas os perfis (sem join que pode não existir no schema)
+      const { data: profiles, error: profilesError } = await this.supabase
         .from('profiles')
-        .select(`
-          *,
-          user_group_members!left(
-            group_id,
-            joined_at,
-            user_groups!inner(
-              id,
-              name,
-              type,
-              description
-            )
-          )
-        `)
+        .select('*')
         .eq('status', 'approved')
         .order('full_name');
 
-      if (error) throw error;
+      if (profilesError) throw profilesError;
 
-      // Processar dados para incluir group_id no membro
-      const processedMembers = (data || []).map(member => ({
+      // Buscar grupos dos membros separadamente
+      const memberIds = (profiles || []).map(p => p.id);
+      let groupMap = new Map();
+
+      if (memberIds.length > 0) {
+        // Buscar membros dos grupos
+        const { data: groupMembers, error: groupMembersError } = await this.supabase
+          .from('user_group_members')
+          .select('user_id, group_id')
+          .in('user_id', memberIds);
+
+        if (!groupMembersError && groupMembers && groupMembers.length > 0) {
+          // Buscar informações dos grupos
+          const groupIds = [...new Set(groupMembers.map(gm => gm.group_id).filter(Boolean))];
+          
+          if (groupIds.length > 0) {
+            const { data: groups, error: groupsError } = await this.supabase
+              .from('user_groups')
+              .select('id, name, type, description')
+              .in('id', groupIds);
+
+            if (!groupsError && groups) {
+              groups.forEach(g => groupMap.set(g.id, g));
+            }
+          }
+
+          // Criar mapa de user_id -> group
+          const userGroupMap = new Map();
+          groupMembers.forEach(gm => {
+            if (!userGroupMap.has(gm.user_id)) {
+              userGroupMap.set(gm.user_id, gm.group_id);
+            }
+          });
+
+          // Processar dados para incluir group_id no membro
+          return (profiles || []).map(member => {
+            const groupId = userGroupMap.get(member.id);
+            const group = groupId ? groupMap.get(groupId) : null;
+            
+            return {
+              ...member,
+              group_id: groupId || null,
+              group_name: group?.name || null,
+              group_type: group?.type || null
+            };
+          });
+        }
+      }
+
+      // Se não houver grupos, retornar apenas os perfis
+      return (profiles || []).map(member => ({
         ...member,
-        group_id: member.user_group_members?.[0]?.group_id || null,
-        group_name: member.user_group_members?.[0]?.user_groups?.name || null,
-        group_type: member.user_group_members?.[0]?.user_groups?.type || null
+        group_id: null,
+        group_name: null,
+        group_type: null
       }));
-
-      return processedMembers;
     } catch (error) {
       console.error('Erro ao listar atletas:', error);
       return [];

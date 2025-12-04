@@ -19,8 +19,8 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
     
     const filtered = sourceList.filter(member =>
       member && member.full_name && (
-        member.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (member.phone && member.phone.includes(searchTerm))
+    member.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (member.phone && member.phone.includes(searchTerm))
       )
     );
 
@@ -29,12 +29,12 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
       .sort((a, b) => {
         const nameA = a.full_name?.toLowerCase() || '';
         const nameB = b.full_name?.toLowerCase() || '';
-        if (sortOrder === 'asc') {
-          return nameA.localeCompare(nameB);
-        } else {
-          return nameB.localeCompare(nameA);
-        }
-      });
+    if (sortOrder === 'asc') {
+      return nameA.localeCompare(nameB);
+    } else {
+      return nameB.localeCompare(nameA);
+    }
+  });
   }, [sourceList, searchTerm, sortOrder]);
 
   // Removido: criação manual pelo admin (cadastro vem pelo fluxo de registro)
