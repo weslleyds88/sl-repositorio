@@ -56,19 +56,35 @@ function AppContent() {
   const loadData = async () => {
     setLoadingData(true);
     try {
-      const membersPromise = isAdmin ? db.listMembers() : Promise.resolve([]);
+      // Carregar membros e pagamentos em paralelo, mas tratar erros separadamente
+      const membersPromise = isAdmin 
+        ? db.listMembers().catch(err => {
+            console.error('Erro ao carregar membros:', err);
+            return [];
+          })
+        : Promise.resolve([]);
+      
       const paymentsPromise = (isAdmin || !currentUser?.id)
-        ? db.listPayments()
-        : db.listPayments({ member_id: currentUser.id });
+        ? db.listPayments().catch(err => {
+            console.error('Erro ao carregar pagamentos:', err);
+            return [];
+          })
+        : db.listPayments({ member_id: currentUser.id }).catch(err => {
+            console.error('Erro ao carregar pagamentos do usuário:', err);
+            return [];
+          });
 
       const [membersData, paymentsData] = await Promise.all([
         membersPromise,
         paymentsPromise
       ]);
-      setMembers(membersData);
-      setPayments(paymentsData);
+      
+      setMembers(membersData || []);
+      setPayments(paymentsData || []);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
+      setMembers([]);
+      setPayments([]);
     } finally {
       setLoadingData(false);
     }

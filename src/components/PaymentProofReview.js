@@ -106,10 +106,10 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
     try {
       console.log('🔍 Carregando comprovantes pendentes SEM IMAGENS (otimizado)...');
 
-      // Carregar apenas metadados, SEM as imagens pesadas
+      // Carregar apenas metadados, SEM as imagens pesadas e SEM join (buscar perfis separadamente)
       const { data, error } = await supabase
         .from('payment_proofs')
-        .select('id, payment_id, user_id, proof_amount, payment_method, observation, status, submitted_at, storage_method, profiles:user_id(id, full_name, email)')
+        .select('id, payment_id, user_id, proof_amount, payment_method, observation, status, submitted_at, storage_method')
         .eq('status', 'pending')
         .order('submitted_at', { ascending: false })
         .range(page * pageSize, page * pageSize + pageSize - 1);
@@ -123,6 +123,21 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
 
       // Enriquecer com informações de grupo (campeonato)
       const proofsList = data || [];
+
+      // Buscar perfis dos usuários em lote
+      const userIds = [...new Set(proofsList.map(p => p.user_id).filter(Boolean))];
+      let profileMap = new Map();
+
+      if (userIds.length > 0) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+
+        if (!profilesError && Array.isArray(profilesData)) {
+          profilesData.forEach(p => profileMap.set(p.id, p));
+        }
+      }
 
       // Buscar pagamentos relacionados em lote
       const paymentIds = proofsList.map(p => p.payment_id).filter(Boolean);
@@ -152,12 +167,18 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
         }
       }
 
-      // Adicionar flag de imagem + nome do grupo
+      // Adicionar flag de imagem + nome do grupo + dados do perfil
       const processedProofs = proofsList.map(proof => {
         const paymentInfo = paymentMap.get(proof.payment_id);
         const groupName = paymentInfo?.group_id ? groupNameMap.get(paymentInfo.group_id) : null;
+        const profile = profileMap.get(proof.user_id);
         return {
           ...proof,
+          profiles: profile ? {
+            id: profile.id,
+            full_name: profile.full_name,
+            email: profile.email
+          } : null,
           imageUrl: null,         // Será carregada sob demanda
           hasValidImage: true,    // Assumir que tem (carregar depois)
           imageLoaded: false,
@@ -207,10 +228,10 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
       if (currentProof) {
         console.log('🔄 Atualizando pagamento:', currentProof.payment_id);
         
-        // Buscar dados completos do pagamento (incluindo id, group_id, category, profiles)
+        // Buscar dados completos do pagamento
         const { data: paymentData, error: fetchError } = await supabase
           .from('payments')
-          .select('*, profiles:member_id(id, full_name, email)')
+          .select('*')
           .eq('id', currentProof.payment_id)
           .single();
 
@@ -218,6 +239,23 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
           console.error('❌ Erro ao buscar pagamento:', fetchError);
           throw fetchError;
         }
+
+        // Buscar perfil do membro separadamente
+        let profileData = null;
+        if (paymentData.member_id) {
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('id, full_name, email')
+            .eq('id', paymentData.member_id)
+            .single();
+          
+          if (!profileError && profile) {
+            profileData = profile;
+          }
+        }
+        
+        // Adicionar dados do perfil ao paymentData
+        paymentData.profiles = profileData;
 
         // Calcular novo valor pago
         const totalAmount = parseFloat(paymentData.amount);

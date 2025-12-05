@@ -19,12 +19,17 @@ class SupabaseAdapter {
 
       if (profilesError) throw profilesError;
 
+      // Se não houver perfis, retornar array vazio
+      if (!profiles || profiles.length === 0) {
+        return [];
+      }
+
       // Buscar grupos dos membros separadamente
-      const memberIds = (profiles || []).map(p => p.id);
+      const memberIds = profiles.map(p => p.id);
       let groupMap = new Map();
 
-      if (memberIds.length > 0) {
-        // Buscar membros dos grupos
+      try {
+        // Buscar membros dos grupos (pode falhar se a tabela não existir ou não houver dados)
         const { data: groupMembers, error: groupMembersError } = await this.supabase
           .from('user_group_members')
           .select('user_id, group_id')
@@ -54,7 +59,7 @@ class SupabaseAdapter {
           });
 
           // Processar dados para incluir group_id no membro
-          return (profiles || []).map(member => {
+          return profiles.map(member => {
             const groupId = userGroupMap.get(member.id);
             const group = groupId ? groupMap.get(groupId) : null;
             
@@ -66,10 +71,12 @@ class SupabaseAdapter {
             };
           });
         }
+      } catch (groupError) {
+        // Continuar sem grupos se der erro
       }
 
-      // Se não houver grupos, retornar apenas os perfis
-      return (profiles || []).map(member => ({
+      // Se não houver grupos ou der erro, retornar apenas os perfis
+      return profiles.map(member => ({
         ...member,
         group_id: null,
         group_name: null,

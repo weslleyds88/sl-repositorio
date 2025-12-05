@@ -37,7 +37,7 @@ export function AuthProvider({ children }) {
       // Primeiro tentar buscar o perfil pelo ID do auth user
       let { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('account_status, role')
+        .select('account_status, role, status')
         .eq('id', currentUser.id)
         .single();
 
@@ -45,7 +45,7 @@ export function AuthProvider({ children }) {
       if (profileError && (profileError.code === 'PGRST116' || profileError.code === '23505')) {
         const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
-          .select('account_status, role')
+          .select('account_status, role, status')
           .eq('email', currentUser.email)
           .order('created_at', { ascending: false });
 
@@ -117,19 +117,33 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!isAuthenticated || !currentUser?.id) return;
 
+    let isMounted = true;
+
     // Verificar em eventos de interação do usuário
     const handleUserAction = () => {
-      checkAccountStatus();
+      if (isMounted) {
+        checkAccountStatus().catch(err => {
+          console.error('Erro ao verificar status:', err);
+        });
+      }
     };
 
     // Ouvir eventos de clique e navegação
     window.addEventListener('click', handleUserAction, { once: true, capture: true });
     window.addEventListener('popstate', handleUserAction);
     
-    // Verificar ao carregar a página
-    checkAccountStatus();
+    // Verificar ao carregar a página (com delay para não bloquear o carregamento inicial)
+    const timeoutId = setTimeout(() => {
+      if (isMounted) {
+        checkAccountStatus().catch(err => {
+          console.error('Erro ao verificar status:', err);
+        });
+      }
+    }, 1000);
 
     return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
       window.removeEventListener('click', handleUserAction);
       window.removeEventListener('popstate', handleUserAction);
     };
