@@ -1,42 +1,35 @@
-import { createClient } from '@supabase/supabase-js';
+// CORRIJA PARA USAR VARIÁVEIS DE AMBIENTE
+import { createClient } from '@supabase/supabase-js'
 
-// IMPORTANTE: Para usar com Supabase, você precisa:
-// 1. Ir ao dashboard do Supabase (https://supabase.com/dashboard)
-// 2. Selecionar seu projeto
-// 3. Ir em Settings > API
-// 4. Copiar a URL e a anon key
-// 5. Configurar as variáveis de ambiente
+// VERIFICAÇÃO FORÇADA
+console.log('🔧 Configuração Supabase:')
+console.log('  - URL:', process.env.REACT_APP_SUPABASE_URL)
+console.log('  - Key:', process.env.REACT_APP_SUPABASE_ANON_KEY ? '*** Configurada' : '❌ NÃO CONFIGURADA')
+console.log('  - Ambiente:', process.env.NODE_ENV)
 
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
-
-// Log de debug para verificar configuração
-console.log('🔧 Configuração Supabase:');
-console.log('  - URL:', supabaseUrl ? '✅ Configurada' : '❌ AUSENTE');
-console.log('  - Key:', supabaseAnonKey ? '✅ Configurada' : '❌ AUSENTE');
-console.log('  - Ambiente:', process.env.NODE_ENV || 'desenvolvimento');
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL
+const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('❌ Configurações do Supabase não encontradas!');
-  console.error('📋 Certifique-se de configurar no Cloudflare Pages:');
-  console.error('   - REACT_APP_SUPABASE_URL');
-  console.error('   - REACT_APP_SUPABASE_ANON_KEY');
-  console.error('📖 Veja: DEPLOY-CLOUDFLARE.md');
+  console.error('❌ Variáveis de ambiente do Supabase não configuradas!')
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: true,
     autoRefreshToken: true,
-    storageKey: 'sao-luiz-auth', // Chave única para evitar conflitos
-    detectSessionInUrl: true,
-  },
-  global: {
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-  },
-});
+    persistSession: true,
+    detectSessionInUrl: true
+  }
+})
 
-export default supabase;
+// Função de teste de conexão
+export async function testConnection() {
+  try {
+    const { data, error } = await supabase.auth.getSession()
+    if (error) throw error
+    return { success: true, data }
+  } catch (error) {
+    console.error('❌ Erro de conexão:', error)
+    return { success: false, error: error.message }
+  }
+}
