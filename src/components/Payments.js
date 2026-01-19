@@ -25,6 +25,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
   // Estados para o Resumo por Atleta
   const [summarySearchTerm, setSummarySearchTerm] = useState('');
   const [summaryYear, setSummaryYear] = useState('all'); // 'all' ou '2024', '2025', etc.
+  const [summaryStatus, setSummaryStatus] = useState('all'); // 'all', 'paid', 'pending'
   const [summaryGroups, setSummaryGroups] = useState([]); // Array de IDs dos grupos selecionados
   const [showGroupFilter, setShowGroupFilter] = useState(false); // Controla a exibição do dropdown de grupos
   const [groupSearchTerm, setGroupSearchTerm] = useState(''); // Busca dentro do dropdown de grupos
@@ -1540,10 +1541,21 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                 ));
               })()}
             </select>
+
+            {/* Filtro de Status (Pago/Pendente) */}
+            <select
+              value={summaryStatus}
+              onChange={(e) => setSummaryStatus(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="all">💰 Todos os status</option>
+              <option value="paid">✅ Pagos</option>
+              <option value="pending">⏳ Pendentes</option>
+            </select>
           </div>
 
           {/* Indicador de Filtros Ativos */}
-          {(summarySearchTerm || summaryYear !== 'all' || summaryGroups.length > 0) && (
+          {(summarySearchTerm || summaryYear !== 'all' || summaryStatus !== 'all' || summaryGroups.length > 0) && (
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center flex-wrap gap-2">
@@ -1569,11 +1581,17 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                       Ano: {summaryYear}
                     </span>
                   )}
+                  {summaryStatus !== 'all' && (
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm font-medium">
+                      {summaryStatus === 'paid' ? '✅ Pagos' : '⏳ Pendentes'}
+                    </span>
+                  )}
                 </div>
                 <button
                   onClick={() => {
                     setSummarySearchTerm('');
                     setSummaryYear('all');
+                    setSummaryStatus('all');
                     setSummaryGroups([]);
                   }}
                   className="text-blue-600 hover:text-blue-800 text-sm font-medium"
@@ -1641,6 +1659,18 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
               }, 0);
               
               const totalPending = totalExpected - totalPaid;
+
+              // Filtrar por status (Pago/Pendente)
+              if (summaryStatus !== 'all') {
+                if (summaryStatus === 'paid' && totalPending > 0) {
+                  // Se filtro é "pagos" mas há pendente, não mostrar
+                  return null;
+                }
+                if (summaryStatus === 'pending' && totalPending === 0) {
+                  // Se filtro é "pendentes" mas está tudo pago, não mostrar
+                  return null;
+                }
+              }
 
               console.log(`👤 Resumo de ${member.full_name}:`, {
                 totalPayments: memberPayments.length,
