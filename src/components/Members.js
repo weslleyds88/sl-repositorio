@@ -271,13 +271,24 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
                                 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
                                 const serviceRoleKey = process.env.REACT_APP_SUPABASE_SERVICE_ROLE_KEY;
                                 
+                                console.log('🔍 Debug - Service Role Key presente:', !!serviceRoleKey);
+                                console.log('🔍 Debug - Service Role Key length:', serviceRoleKey?.length);
+                                console.log('🔍 Debug - Service Role Key preview:', serviceRoleKey ? `${serviceRoleKey.substring(0, 20)}...` : 'N/A');
+                                
                                 if (!supabaseUrl) {
                                   throw new Error('URL do Supabase não configurada');
                                 }
 
                                 // Se tiver Service Role Key, fazer reset direto (self-hosted)
-                                if (serviceRoleKey) {
+                                if (serviceRoleKey && serviceRoleKey.trim().length > 0) {
                                   console.log('🔧 Usando reset direto (self-hosted)...');
+                                  
+                                  // Validar formato do JWT (deve ter 3 partes separadas por ponto)
+                                  const jwtParts = serviceRoleKey.split('.');
+                                  if (jwtParts.length !== 3) {
+                                    console.error('❌ Service Role Key inválida: JWT deve ter 3 partes, encontrado:', jwtParts.length);
+                                    throw new Error('Service Role Key inválida. Verifique se está configurada corretamente no .env.local');
+                                  }
                                   
                                   // Gerar senha aleatória
                                   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -288,12 +299,13 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
                                   // Atualizar senha usando Admin API
                                   const updateUrl = `${supabaseUrl}/auth/v1/admin/users/${member.id}`;
                                   console.log('Atualizando senha em:', updateUrl);
+                                  console.log('🔑 Usando Service Role Key (primeiros 30 chars):', serviceRoleKey.substring(0, 30) + '...');
                                   
                                   const updateResp = await fetch(updateUrl, {
                                     method: 'PUT',
                                     headers: {
-                                      'Authorization': `Bearer ${serviceRoleKey}`,
-                                      'apikey': serviceRoleKey,
+                                      'Authorization': `Bearer ${serviceRoleKey.trim()}`,
+                                      'apikey': serviceRoleKey.trim(),
                                       'Content-Type': 'application/json'
                                     },
                                     body: JSON.stringify({
