@@ -283,11 +283,16 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
                                 if (serviceRoleKey && serviceRoleKey.trim().length > 0) {
                                   console.log('🔧 Usando reset direto (self-hosted)...');
                                   
-                                  // Validar formato do JWT (deve ter 3 partes separadas por ponto)
-                                  const jwtParts = serviceRoleKey.split('.');
-                                  if (jwtParts.length !== 3) {
-                                    console.error('❌ Service Role Key inválida: JWT deve ter 3 partes, encontrado:', jwtParts.length);
-                                    throw new Error('Service Role Key inválida. Verifique se está configurada corretamente no .env.local');
+                                  const trimmedKey = serviceRoleKey.trim();
+                                  
+                                  // No Supabase self-hosted, as chaves podem ser strings simples (não JWT)
+                                  // Aceitar tanto JWT quanto chaves simples
+                                  const isJWT = trimmedKey.includes('.') && trimmedKey.split('.').length === 3;
+                                  
+                                  if (isJWT) {
+                                    console.log('✅ Service Role Key no formato JWT detectado');
+                                  } else {
+                                    console.log('✅ Service Role Key no formato simples (self-hosted) detectado');
                                   }
                                   
                                   // Gerar senha aleatória
