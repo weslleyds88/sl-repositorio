@@ -267,6 +267,66 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
 
                                 if (!window.confirm(`Gerar nova senha para ${member.full_name}?`)) return;
                                 
+                                // Obter URL e Service Role Key do Supabase
+                                const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+                                const serviceRoleKey = process.env.REACT_APP_SUPABASE_SERVICE_ROLE_KEY;
+                                
+                                if (!supabaseUrl) {
+                                  throw new Error('URL do Supabase não configurada');
+                                }
+
+                                // Se tiver Service Role Key, fazer reset direto (self-hosted)
+                                if (serviceRoleKey) {
+                                  console.log('🔧 Usando reset direto (self-hosted)...');
+                                  
+                                  // Gerar senha aleatória
+                                  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                                  const newPassword = Array.from({ length: 12 }, () => 
+                                    chars[Math.floor(Math.random() * chars.length)]
+                                  ).join('');
+
+                                  // Atualizar senha usando Admin API
+                                  const updateUrl = `${supabaseUrl}/auth/v1/admin/users/${member.id}`;
+                                  console.log('Atualizando senha em:', updateUrl);
+                                  
+                                  const updateResp = await fetch(updateUrl, {
+                                    method: 'PUT',
+                                    headers: {
+                                      'Authorization': `Bearer ${serviceRoleKey}`,
+                                      'apikey': serviceRoleKey,
+                                      'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({
+                                      password: newPassword,
+                                      email_confirm: true
+                                    })
+                                  });
+
+                                  if (!updateResp.ok) {
+                                    const errorText = await updateResp.text().catch(() => 'Erro desconhecido');
+                                    console.error('Erro ao atualizar senha:', errorText);
+                                    throw new Error('Erro ao atualizar senha: ' + errorText);
+                                  }
+
+                                  // Marcar que o usuário deve trocar a senha no próximo login
+                                  const { error: profileError } = await supabase
+                                    .from('profiles')
+                                    .update({ must_change_password: true })
+                                    .eq('id', member.id);
+
+                                  if (profileError) {
+                                    console.error('Erro ao marcar must_change_password:', profileError);
+                                    // Não falhar, apenas logar
+                                  }
+
+                                  await navigator.clipboard.writeText(newPassword).catch(() => {});
+                                  alert(`✅ Senha resetada com sucesso!\n\nNova senha: ${newPassword}\n\n(Senha copiada para a área de transferência)\n\n⚠️ O usuário será obrigado a trocar a senha no próximo login.`);
+                                  return;
+                                }
+
+                                // Fallback: Tentar usar Edge Function (Supabase Cloud)
+                                console.log('🔧 Tentando usar Edge Function (Supabase Cloud)...');
+                                
                                 // Obter token de autenticação
                                 let { data: session } = await supabase.auth.getSession();
                                 console.log('Sessão inicial:', session);
@@ -283,15 +343,6 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
                                 if (!token) {
                                   alert('Sessão inválida. Faça login novamente.');
                                   return;
-                                }
-
-                                console.log('Fazendo requisição para reset de senha...');
-
-                                // Obter URL do Supabase do cliente
-                                const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || supabase?.supabaseUrl;
-                                
-                                if (!supabaseUrl) {
-                                  throw new Error('URL do Supabase não configurada');
                                 }
 
                                 // Chamar Supabase Edge Function
@@ -322,7 +373,7 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
 
                                 const newPassword = json.password;
                                 await navigator.clipboard.writeText(newPassword).catch(() => {});
-                                alert(`✅ Senha resetada com sucesso!\n\nNova senha: ${newPassword}\n\n(Senha copiada para a área de transferência)`);
+                                alert(`✅ Senha resetada com sucesso!\n\nNova senha: ${newPassword}\n\n(Senha copiada para a área de transferência)\n\n⚠️ O usuário será obrigado a trocar a senha no próximo login.`);
                               } catch (e) {
                                 console.error('Erro completo no reset de senha:', e);
                                 alert('Erro ao resetar senha: ' + (e.message || 'desconhecido'));

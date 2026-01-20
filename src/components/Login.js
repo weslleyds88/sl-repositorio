@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import Register from './Register';
 import ResetPassword from './ResetPassword';
+import ForgotPassword from './ForgotPassword';
 
 function Login({ onLogin }) {
   const [email, setEmail] = useState('');
@@ -10,6 +11,7 @@ function Login({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   // Detectar se é um link de reset de senha
   useEffect(() => {
@@ -248,6 +250,19 @@ function Login({ onLogin }) {
     setShowRegister(false);
   };
 
+  if (showForgotPassword) {
+    return (
+      <ForgotPassword
+        onSuccess={() => {
+          setShowForgotPassword(false);
+        }}
+        onCancel={() => {
+          setShowForgotPassword(false);
+        }}
+      />
+    );
+  }
+
   if (showResetPassword) {
     return (
       <ResetPassword
@@ -308,7 +323,16 @@ function Login({ onLogin }) {
             </div>
 
             <div>
-              <label className="label">Senha</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="label mb-0">Senha</label>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                >
+                  Esqueci minha senha
+                </button>
+              </div>
               <input
                 type="password"
                 className="input"
