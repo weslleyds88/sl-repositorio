@@ -194,6 +194,7 @@ function AppContent() {
                 onRefresh={refreshMembers}
                 isAdmin={isAdmin}
                 supabase={supabase}
+                currentUser={currentUser}
               />
             }
           />

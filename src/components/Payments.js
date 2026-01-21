@@ -1745,32 +1745,47 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                     </div>
                   </div>
 
-                  {/* Detalhamento das categorias */}
+                  {/* Detalhamento por grupo de cobrança */}
                   <div className="mt-3 pt-3 border-t border-gray-200">
                     <div className="text-xs text-gray-500 space-y-1">
-                      {Array.from(new Set(memberPayments.map(p => p.category))).map(category => {
-                        const categoryPayments = memberPayments.filter(p => p.category === category);
-                        const categoryTotal = categoryPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-                        
-                        // Somar pagamentos completos E parciais por categoria
-                        const categoryPaid = categoryPayments.reduce((sum, p) => {
-                          if (p.status === 'paid') {
-                            return sum + parseFloat(p.amount || 0);
-                          } else if (p.paid_amount && parseFloat(p.paid_amount) > 0) {
-                            return sum + parseFloat(p.paid_amount || 0);
+                      {(() => {
+                        // Agrupar pagamentos por group_id
+                        const paymentsByGroup = {};
+                        memberPayments.forEach(p => {
+                          const groupId = p.group_id || 'sem-grupo';
+                          if (!paymentsByGroup[groupId]) {
+                            paymentsByGroup[groupId] = [];
                           }
-                          return sum;
-                        }, 0);
+                          paymentsByGroup[groupId].push(p);
+                        });
 
-                        return (
-                          <div key={category} className="flex justify-between">
-                            <span>{category}</span>
-                            <span className={categoryPaid === categoryTotal ? 'text-green-600' : 'text-gray-600'}>
-                              {formatCurrency(categoryPaid)} / {formatCurrency(categoryTotal)}
-                            </span>
-                          </div>
-                        );
-                      })}
+                        return Object.entries(paymentsByGroup).map(([groupId, groupPayments]) => {
+                          const groupTotal = groupPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+                          
+                          // Somar pagamentos completos E parciais por grupo
+                          const groupPaid = groupPayments.reduce((sum, p) => {
+                            if (p.status === 'paid') {
+                              return sum + parseFloat(p.amount || 0);
+                            } else if (p.paid_amount && parseFloat(p.paid_amount) > 0) {
+                              return sum + parseFloat(p.paid_amount || 0);
+                            }
+                            return sum;
+                          }, 0);
+
+                          // Buscar nome do grupo
+                          const group = groups.find(g => g.id === groupId);
+                          const groupName = group ? group.name : 'Sem grupo';
+
+                          return (
+                            <div key={groupId} className="flex justify-between">
+                              <span>{groupName}</span>
+                              <span className={groupPaid === groupTotal ? 'text-green-600' : 'text-gray-600'}>
+                                {formatCurrency(groupTotal)}
+                              </span>
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
                 </div>

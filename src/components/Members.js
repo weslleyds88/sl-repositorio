@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import MemberForm from './MemberForm';
 import { formatDate } from '../utils/dateUtils';
 
-const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
+const Members = ({ db, members, onRefresh, isAdmin, supabase, currentUser }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -267,130 +267,75 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase }) => {
 
                                 if (!window.confirm(`Gerar nova senha para ${member.full_name}?`)) return;
                                 
-                                // Obter URL e Service Role Key do Supabase
-                                const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-                                const serviceRoleKey = process.env.REACT_APP_SUPABASE_SERVICE_ROLE_KEY;
-                                
-                                console.log('🔍 Debug - Service Role Key presente:', !!serviceRoleKey);
-                                console.log('🔍 Debug - Service Role Key length:', serviceRoleKey?.length);
-                                console.log('🔍 Debug - Service Role Key preview:', serviceRoleKey ? `${serviceRoleKey.substring(0, 20)}...` : 'N/A');
-                                
-                                if (!supabaseUrl) {
-                                  throw new Error('URL do Supabase não configurada');
+                                // Verificar se o usuário atual é admin
+                                if (!isAdmin || !currentUser?.id) {
+                                  alert('❌ Apenas administradores podem resetar senhas.');
+                                  return;
                                 }
 
-                                // Se tiver Service Role Key, fazer reset direto (self-hosted)
-                                if (serviceRoleKey && serviceRoleKey.trim().length > 0) {
-                                  console.log('🔧 Usando reset direto (self-hosted)...');
-                                  
-                                  const trimmedKey = serviceRoleKey.trim();
-                                  
-                                  // No Supabase self-hosted, as chaves podem ser strings simples (não JWT)
-                                  // Aceitar tanto JWT quanto chaves simples
-                                  const isJWT = trimmedKey.includes('.') && trimmedKey.split('.').length === 3;
-                                  
-                                  if (isJWT) {
-                                    console.log('✅ Service Role Key no formato JWT detectado');
-                                  } else {
-                                    console.log('✅ Service Role Key no formato simples (self-hosted) detectado');
-                                  }
-                                  
-                                  // Gerar senha aleatória
-                                  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-                                  const newPassword = Array.from({ length: 12 }, () => 
-                                    chars[Math.floor(Math.random() * chars.length)]
-                                  ).join('');
+                                // URL da API de reset de senha
+                                // Pode ser configurada via variável de ambiente ou usar URL padrão
+                                const apiUrl = process.env.REACT_APP_RESET_PASSWORD_API_URL || 
+                                             process.env.REACT_APP_SUPABASE_URL?.replace('/rest/v1', '') + '/api/reset-password' ||
+                                             'http://localhost:3001/api/reset-password';
+                                
+                                console.log('🔧 Chamando API de reset de senha:', apiUrl);
 
-                                  // Atualizar senha usando Admin API
-                                  const updateUrl = `${supabaseUrl}/auth/v1/admin/users/${member.id}`;
-                                  console.log('Atualizando senha em:', updateUrl);
-                                  console.log('🔑 Usando Service Role Key (primeiros 30 chars):', serviceRoleKey.substring(0, 30) + '...');
-                                  
-                                  const updateResp = await fetch(updateUrl, {
-                                    method: 'PUT',
+                                try {
+                                  // Chamar API backend
+                                  const resp = await fetch(apiUrl, {
+                                    method: 'POST',
                                     headers: {
-                                      'Authorization': `Bearer ${serviceRoleKey.trim()}`,
-                                      'apikey': serviceRoleKey.trim(),
                                       'Content-Type': 'application/json'
                                     },
                                     body: JSON.stringify({
-                                      password: newPassword,
-                                      email_confirm: true
+                                      userId: member.id,
+                                      adminUserId: currentUser.id // Verificação de segurança no backend
                                     })
                                   });
 
-                                  if (!updateResp.ok) {
-                                    const errorText = await updateResp.text().catch(() => 'Erro desconhecido');
-                                    console.error('Erro ao atualizar senha:', errorText);
-                                    throw new Error('Erro ao atualizar senha: ' + errorText);
+                                  const json = await resp.json();
+
+                                  if (!resp.ok) {
+                                    throw new Error(json.error || json.details || 'Falha ao resetar senha');
                                   }
 
-                                  // Marcar que o usuário deve trocar a senha no próximo login
-                                  const { error: profileError } = await supabase
-                                    .from('profiles')
-                                    .update({ must_change_password: true })
-                                    .eq('id', member.id);
-
-                                  if (profileError) {
-                                    console.error('Erro ao marcar must_change_password:', profileError);
-                                    // Não falhar, apenas logar
-                                  }
-
+                                  // Sucesso!
+                                  const newPassword = json.password;
                                   await navigator.clipboard.writeText(newPassword).catch(() => {});
+                                  
                                   alert(`✅ Senha resetada com sucesso!\n\nNova senha: ${newPassword}\n\n(Senha copiada para a área de transferência)\n\n⚠️ O usuário será obrigado a trocar a senha no próximo login.`);
-                                  return;
+                                  
+                                } catch (apiError) {
+                                  console.error('Erro ao chamar API:', apiError);
+                                  
+                                  // Fallback: Tentar método antigo (RPC + Edge Function)
+                                  console.log('⚠️ API não disponível, tentando métodos alternativos...');
+                                  
+                                  const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+                                  if (!supabaseUrl) {
+                                    throw new Error('URL do Supabase não configurada');
+                                  }
+
+                                  // Tentar RPC Function
+                                  try {
+                                    const { data: rpcData, error: rpcError } = await supabase.rpc('reset_user_password', {
+                                      target_user_id: member.id
+                                    });
+
+                                    if (!rpcError && rpcData) {
+                                      const newPassword = rpcData;
+                                      await navigator.clipboard.writeText(newPassword).catch(() => {});
+                                      alert(`⚠️ Senha gerada, mas pode não estar atualizada no auth.users.\n\nNova senha: ${newPassword}\n\n(Senha copiada para a área de transferência)\n\n⚠️ ATENÇÃO: Verifique se a senha funciona. Se não funcionar, atualize manualmente no Supabase Dashboard.`);
+                                      return;
+                                    }
+                                  } catch (rpcErr) {
+                                    console.log('RPC não disponível');
+                                  }
+
+                                  // Se chegou aqui, nenhum método funcionou
+                                  throw new Error(apiError.message || 'Não foi possível resetar a senha. Verifique se a API está rodando.');
                                 }
-
-                                // Fallback: Tentar usar Edge Function (Supabase Cloud)
-                                console.log('🔧 Tentando usar Edge Function (Supabase Cloud)...');
-                                
-                                // Obter token de autenticação
-                                let { data: session } = await supabase.auth.getSession();
-                                console.log('Sessão inicial:', session);
-                                
-                                if (!session?.session) {
-                                  console.log('Sessão não encontrada, tentando refresh...');
-                                  await supabase.auth.refreshSession();
-                                  const refreshed = await supabase.auth.getSession();
-                                  session = refreshed.data;
-                                  console.log('Sessão após refresh:', session);
-                                }
-                                
-                                const token = session?.session?.access_token;
-                                if (!token) {
-                                  alert('Sessão inválida. Faça login novamente.');
-                                  return;
-                                }
-
-                                // Chamar Supabase Edge Function
-                                const functionUrl = `${supabaseUrl}/functions/v1/admin-reset-password`;
-                                
-                                const resp = await fetch(functionUrl, {
-                                  method: 'POST',
-                                  headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${token}`,
-                                    'apikey': process.env.REACT_APP_SUPABASE_ANON_KEY || ''
-                                  },
-                                  body: JSON.stringify({ 
-                                    userId: member.id
-                                  })
-                                });
-
-                                console.log('Resposta HTTP:', resp.status, resp.statusText);
-
-                                const json = await resp.json();
-                                console.log('Resposta JSON:', json);
-
-                                if (!resp.ok) {
-                                  const errorMsg = json.error || json.detail || 'Falha ao resetar senha';
-                                  const errorDetail = json.detail ? `\n\nDetalhes: ${JSON.stringify(json.detail)}` : '';
-                                  throw new Error(errorMsg + errorDetail);
-                                }
-
-                                const newPassword = json.password;
-                                await navigator.clipboard.writeText(newPassword).catch(() => {});
-                                alert(`✅ Senha resetada com sucesso!\n\nNova senha: ${newPassword}\n\n(Senha copiada para a área de transferência)\n\n⚠️ O usuário será obrigado a trocar a senha no próximo login.`);
                               } catch (e) {
                                 console.error('Erro completo no reset de senha:', e);
                                 alert('Erro ao resetar senha: ' + (e.message || 'desconhecido'));
