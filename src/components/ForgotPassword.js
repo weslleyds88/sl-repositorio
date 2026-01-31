@@ -1,180 +1,53 @@
-import React, { useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import React from 'react';
 
-function ForgotPassword({ onSuccess, onCancel }) {
-  const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess(false);
-    setLoading(true);
-
-    try {
-      console.log('📧 Solicitando reset de senha para:', email);
-      
-      // Solicitar reset de senha via Supabase
-      // Usar a URL atual do site (funciona tanto em produção quanto self-hosted)
-      const redirectUrl = `${window.location.origin}${window.location.pathname}#type=recovery`;
-      
-      console.log('🔗 URL de redirecionamento:', redirectUrl);
-      
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: redirectUrl,
-      });
-
-      if (error) throw error;
-
-      console.log('✅ Email de reset enviado com sucesso!');
-      setSuccess(true);
-    } catch (error) {
-      console.error('❌ Erro ao solicitar reset de senha:', error);
-      setError(error.message || 'Erro ao solicitar reset de senha. Verifique se o email está correto.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (success) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="w-full md:max-w-md">
-          <div className="text-center mb-8">
-            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-              <svg
-                className="w-8 h-8 text-green-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900">Email Enviado!</h2>
-            <p className="text-gray-600 mt-2">
-              Enviamos um link de recuperação de senha para:
-            </p>
-            <p className="text-gray-900 font-semibold mt-1">{email}</p>
-          </div>
-
-          <div className="card p-8">
-            <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-4">
-              <p className="text-sm">
-                📧 Verifique sua caixa de entrada e spam. O link expira em 1 hora.
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <button
-                onClick={onSuccess}
-                className="btn btn-primary w-full"
-              >
-                Voltar para Login
-              </button>
-              <button
-                onClick={() => {
-                  setSuccess(false);
-                  setEmail('');
-                }}
-                className="btn btn-outline w-full"
-              >
-                Enviar Novamente
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+function ForgotPassword({ onCancel }) {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
       <div className="w-full md:max-w-md">
-        <div className="text-center mb-8">
-          <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-            <svg
-              className="w-8 h-8 text-blue-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
-              />
-            </svg>
+        <div className="text-center mb-6">
+          <div className="flex justify-center mb-4">
+            <img
+              src="/logo.png"
+              alt="Logo São Luiz"
+              className="h-24 w-auto"
+            />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">Esqueci minha senha</h2>
-          <p className="text-gray-600 mt-2">
-            Digite seu email e enviaremos um link para redefinir sua senha
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+            São Luiz Vôlei Cidadão
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 text-sm">
+            Sistema de Gestão Financeira
           </p>
         </div>
 
-        <div className="card p-8">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                {error}
-              </div>
-            )}
+        <div className="card p-6 md:p-8">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white text-center mb-4">
+            Esqueci minha senha
+          </h2>
 
-            <div>
-              <label htmlFor="email" className="label">
-                Email *
-              </label>
-              <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="input"
-                placeholder="Digite seu email cadastrado"
-                required
-                autoFocus
-              />
-            </div>
+          <p className="text-gray-700 dark:text-gray-300 text-center mb-6 leading-relaxed">
+            Para resetar a senha, por favor entre em contato com o <strong>Medeiros</strong> ou <strong>Vitorino</strong> para que a senha seja alterada.
+          </p>
 
-            <div className="flex space-x-3">
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Enviando...
-                  </>
-                ) : (
-                  '📧 Enviar Link de Recuperação'
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={onCancel}
-                className="btn btn-secondary"
-                disabled={loading}
-              >
-                Cancelar
-              </button>
-            </div>
-          </form>
-
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <p className="text-xs text-gray-500 text-center">
-              💡 Não recebeu o email? Verifique sua caixa de spam ou entre em contato com o administrador.
+          <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg p-4 mb-6">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+              Como funciona:
             </p>
+            <ol className="text-sm text-gray-700 dark:text-gray-300 space-y-2 list-decimal list-inside">
+              <li>Entre em contato com Medeiros ou Vitorino.</li>
+              <li>Eles vão alterar sua senha no sistema.</li>
+              <li>Você receberá a nova senha e poderá entrar na sua conta.</li>
+              <li>Depois de entrar, acesse seu <strong>Perfil</strong> e altere a senha para uma de sua preferência.</li>
+            </ol>
           </div>
+
+          <button
+            type="button"
+            onClick={onCancel}
+            className="btn-primary w-full py-3"
+          >
+            Voltar para Login
+          </button>
         </div>
       </div>
     </div>
