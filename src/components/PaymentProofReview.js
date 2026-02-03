@@ -78,7 +78,7 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
 
 
   const loadPendingProofs = useCallback(async () => {
-    try {, SEM as imagens pesadas e SEM join (buscar perfis separadamente)
+    try {
       const { data, error } = await supabase
         .from('payment_proofs')
         .select('id, payment_id, user_id, proof_amount, payment_method, observation, status, submitted_at, storage_method')
