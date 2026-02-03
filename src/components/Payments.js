@@ -201,28 +201,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
     return nameA.localeCompare(nameB);
   }), [listFilteredPayments, isAdmin, payments, members, groups]);
 
-  // Calcular resumo geral para admin
-  const totalPaid = sortedAndFilteredPayments.reduce((sum, p) => sum + (p.paidAmount || 0), 0);
-  const totalExpected = sortedAndFilteredPayments.reduce((sum, p) => sum + (p.displayAmount || 0), 0);
-
-  // Calcular resumo por atleta
-  const memberSummary = members.map(member => {
-    const memberPayments = filteredPayments.filter(p => p.member_id === member.id);
-    if (memberPayments.length === 0) return null;
-
-    const totalExpected = memberPayments.reduce((sum, p) => sum + (p.displayAmount || 0), 0);
-    const totalPaid = memberPayments.reduce((sum, p) => sum + (p.status === 'paid' ? (p.amount || 0) : 0), 0);
-
-    return {
-      id: member.id,
-      name: member.full_name,
-      totalExpected,
-      totalPaid,
-      totalPending: totalExpected - totalPaid,
-      paymentCount: memberPayments.length
-    };
-  }).filter(Boolean);
-
   const handleAddPayment = () => {
     if (!isAdmin) {
       alert('Modo visualização: você não pode adicionar novos pagamentos.');
@@ -294,7 +272,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
         // Para cada novo membro, verificar se existe pagamento órfão DO MESMO GRUPO
         for (const member of newMembers) {
           // Buscar pagamento órfão (group_id = null) com mesma categoria, valor e vencimento
-          const { data: orphanPayments, error: orphanError } = await supabase
+          const { data: orphanPayments } = await supabase
             .from('payments')
             .select('*')
             .eq('member_id', member.user_id)
@@ -406,7 +384,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
         const paymentIdsToRemove = paymentsToRemove.map(p => p.id);
 
         // PASSO 1: Verificar se há tickets relacionados (para preservá-los)
-        const { data: relatedTickets, error: ticketsCheckError } = await supabase
+        const { data: relatedTickets } = await supabase
           .from('payment_tickets')
           .select('id, payment_id')
           .in('payment_id', paymentIdsToRemove);
@@ -431,7 +409,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
         // PASSO 3: Para pagamentos SEM tickets, deletar comprovantes e pagamentos
         if (paymentsWithoutTickets.length > 0) {
           // Deletar comprovantes PRIMEIRO
-          const { error: proofsDeleteError } = await supabase
+          await supabase
             .from('payment_proofs')
             .delete()
             .in('payment_id', paymentsWithoutTickets);

@@ -244,7 +244,6 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
         {
           const proof = proofs.find(p => p.id === proofId);
           if (proof) {
-            let ticketId = null;
             try {
 
           const { data: userCheck, error: userError } = await supabase
@@ -293,14 +292,13 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
                 .eq('id', proofId)
                 .single();
 
-              // Mesclar dados do comprovante com a imagem e observação
               const completeProofData = {
                 ...currentProof,
                 proof_image_base64: proofWithImage?.proof_image_base64 || null,
                 observation: proofWithImage?.observation || null
               };
 
-              ticketId = await createIndividualPaymentTicket(completeProofData, paymentData, adminUserId, isFullyPaid);
+              await createIndividualPaymentTicket(completeProofData, paymentData, adminUserId, isFullyPaid);
             }
           }
             } catch {
