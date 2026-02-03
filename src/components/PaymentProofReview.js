@@ -19,16 +19,6 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
   // Função para criar ticket INDIVIDUAL por pagamento (não por cobrança completa)
   const createIndividualPaymentTicket = async (proofData, paymentData, adminUserId, isFullyPaid) => {
     try {
-      console.log('🎫 ========================================');
-      console.log('🎫 CRIANDO TICKET INDIVIDUAL PARA PAGAMENTO:', paymentData.id);
-      console.log('🎫 proofData COMPLETO:', proofData);
-      console.log('🎫 paymentData COMPLETO:', paymentData);
-      console.log('🎫 Valor deste pagamento (proof_amount):', proofData.proof_amount);
-      console.log('🎫 Valor total da cobrança (amount):', paymentData.amount);
-      console.log('🎫 Status:', isFullyPaid ? 'COMPLETO' : 'PARCIAL');
-      console.log('🎫 ========================================');
-
-      // Buscar nome do grupo (se tiver)
       let groupName = null;
       if (paymentData.group_id) {
         const { data: groupData } = await supabase
@@ -36,9 +26,7 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
           .select('name')
           .eq('id', paymentData.group_id)
           .single();
-        
         groupName = groupData?.name || null;
-        console.log('📋 Nome do grupo:', groupName);
       }
 
       // Criar ticket diretamente (sempre novo, nunca atualiza)
@@ -59,15 +47,6 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
         expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString() // 60 dias
       };
 
-      console.log('📝 Dados do ticket:', {
-        payment_id: ticketData.payment_id,
-        category: ticketData.category,
-        group_name: ticketData.group_name,
-        amount: ticketData.amount,
-        payment_status: ticketData.payment_status
-      });
-
-      // Criar novo ticket (sempre)
       const { data, error } = await supabase
         .from('payment_tickets')
         .insert(ticketData)
@@ -75,12 +54,8 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
         .single();
 
       if (error) throw error;
-
-      console.log('✅✅✅ TICKET CRIADO COM SUCESSO! ID:', data.id);
-      console.log('🎫 ========================================');
       return data;
     } catch (error) {
-      console.error('❌ Erro ao criar ticket:', error);
       throw error;
     }
   };
@@ -103,10 +78,7 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
 
 
   const loadPendingProofs = useCallback(async () => {
-    try {
-      console.log('🔍 Carregando comprovantes pendentes SEM IMAGENS (otimizado)...');
-
-      // Carregar apenas metadados, SEM as imagens pesadas e SEM join (buscar perfis separadamente)
+    try {, SEM as imagens pesadas e SEM join (buscar perfis separadamente)
       const { data, error } = await supabase
         .from('payment_proofs')
         .select('id, payment_id, user_id, proof_amount, payment_method, observation, status, submitted_at, storage_method')
@@ -114,12 +86,8 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
         .order('submitted_at', { ascending: false })
         .range(page * pageSize, page * pageSize + pageSize - 1);
 
-      if (error) {
-        console.log('❌ Erro na query:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('📋 Comprovantes (metadados) carregados:', data?.length || 0);
 
       // Enriquecer com informações de grupo (campeonato)
       const proofsList = data || [];
@@ -189,9 +157,7 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
 
       // Se página 0, substitui; senão, concatena
       setProofs(prev => (page === 0 ? processedProofs : [...prev, ...processedProofs]));
-      console.log('✅ Comprovantes processados (com grupos):', processedProofs.length);
     } catch (error) {
-      console.error('❌ Erro ao carregar comprovantes:', error);
       setProofs([]);
     } finally {
       setLoading(false);
@@ -226,7 +192,6 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
       // 2. Atualizar o pagamento (pago total ou parcial)
       const currentProof = proofs.find(p => p.id === proofId);
       if (currentProof) {
-        console.log('🔄 Atualizando pagamento:', currentProof.payment_id);
         
         // Buscar dados completos do pagamento
         const { data: paymentData, error: fetchError } = await supabase
@@ -236,7 +201,6 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
           .single();
 
         if (fetchError) {
-          console.error('❌ Erro ao buscar pagamento:', fetchError);
           throw fetchError;
         }
 
@@ -266,14 +230,6 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
         // Verificar se pagamento está completo
         const isFullyPaid = newPaidAmount >= totalAmount;
 
-        console.log('💰 Cálculo de pagamento:', {
-          totalAmount,
-          currentPaidAmount,
-          proofAmount,
-          newPaidAmount,
-          isFullyPaid
-        });
-        
         const { error: paymentError } = await supabase
           .from('payments')
           .update({
@@ -283,21 +239,13 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
           })
           .eq('id', currentProof.payment_id);
 
-        if (paymentError) {
-          console.error('❌ Erro ao atualizar pagamento:', paymentError);
-          throw paymentError;
-        }
-        
-        console.log(`✅ Pagamento atualizado: ${isFullyPaid ? 'PAGO INTEGRALMENTE' : 'PENDENTE (pagamento parcial)'} - R$ ${newPaidAmount.toFixed(2)} de R$ ${totalAmount.toFixed(2)}`);
-        
-        // 3. Criar ticket SEMPRE (tanto parcial quanto completo)
+        if (paymentError) throw paymentError;
+
         {
           const proof = proofs.find(p => p.id === proofId);
           if (proof) {
             let ticketId = null;
             try {
-          // Verificar se o usuário existe no sistema antes de criar ticket
-          console.log('🎫 Verificando usuário antes de criar ticket:', proof.user_id);
 
           const { data: userCheck, error: userError } = await supabase
             .from('profiles')
@@ -306,7 +254,6 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
             .single();
 
           if (userError || !userCheck) {
-            console.warn('⚠️ Usuário não encontrado no profiles:', proof.user_id);
             // Continuar sem criar ticket se o usuário não existir
           } else {
             // Tentar criar ticket - se currentUser não estiver disponível, buscar um admin do banco
@@ -316,7 +263,6 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
               adminUserId = currentUser.id;
             } else {
               // Buscar um admin do banco como fallback
-              console.log('🔄 currentUser não disponível, buscando admin do banco...');
               try {
                 const { data: adminUser, error: adminError } = await supabase
                   .from('profiles')
@@ -327,40 +273,25 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
 
                 if (!adminError && adminUser) {
                   adminUserId = adminUser.id;
-                  console.log('✅ Admin encontrado no banco:', adminUserId);
                 } else {
-                  console.warn('⚠️ Nenhum admin encontrado no banco, tentando buscar qualquer usuário...');
-                  // Fallback: buscar qualquer usuário como último recurso
                   const { data: anyUser, error: anyError } = await supabase
                     .from('profiles')
                     .select('id')
                     .limit(1)
                     .single();
-
-                  if (!anyError && anyUser) {
-                    adminUserId = anyUser.id;
-                    console.log('⚠️ Usando usuário fallback para criar ticket:', adminUserId);
-                  } else {
-                    console.error('❌ Erro ao buscar qualquer usuário:', anyError);
-                  }
+                  if (!anyError && anyUser) adminUserId = anyUser.id;
                 }
-              } catch (adminErr) {
-                console.warn('⚠️ Erro ao buscar admin:', adminErr);
+              } catch {
+                // fallback admin
               }
             }
 
             if (adminUserId) {
-              // BUSCAR IMAGEM E OBSERVAÇÃO DO COMPROVANTE antes de criar ticket (otimização lazy loading)
-              console.log('📸 Buscando imagem e observação do comprovante para o ticket...');
-              const { data: proofWithImage, error: imageError } = await supabase
+              const { data: proofWithImage } = await supabase
                 .from('payment_proofs')
                 .select('proof_image_base64, observation')
                 .eq('id', proofId)
                 .single();
-
-              if (imageError) {
-                console.warn('⚠️ Erro ao buscar imagem do comprovante:', imageError);
-              }
 
               // Mesclar dados do comprovante com a imagem e observação
               const completeProofData = {
@@ -369,24 +300,10 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
                 observation: proofWithImage?.observation || null
               };
 
-              // Criar ticket individual para este pagamento específico
-              console.log('🎫 Criando ticket individual para:', {
-                payment_id: currentProof.payment_id,
-                proof_amount: currentProof.proof_amount,
-                user_id: currentProof.user_id,
-                approved_by: adminUserId,
-                isFullyPaid: isFullyPaid,
-                hasImage: !!completeProofData.proof_image_base64
-              });
-
               ticketId = await createIndividualPaymentTicket(completeProofData, paymentData, adminUserId, isFullyPaid);
-              console.log('✅ Ticket criado com sucesso:', ticketId);
-            } else {
-              console.warn('⚠️ Nenhum admin disponível para criar ticket, pulando...');
             }
           }
-            } catch (ticketError) {
-              console.warn('⚠️ Erro ao criar ticket (não crítico):', ticketError.message || ticketError);
+            } catch {
               // Não falhar a aprovação se o ticket não for criado
             }
 
@@ -414,9 +331,6 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
                   message: notificationMessage,
                   type: 'success'
                 });
-              console.log(`✅ Notificação de pagamento ${isFullyPaid ? 'completo' : 'parcial'} criada para atleta`);
-            } else {
-              console.log('ℹ️ Notificação não enviada (usuário é admin)');
             }
           }
         }
@@ -426,7 +340,6 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
       loadPendingProofs();
 
     } catch (error) {
-      console.error('Erro ao aprovar comprovante:', error);
       alert('Erro ao aprovar comprovante: ' + error.message);
     } finally {
       setIsSubmitting(false);
@@ -472,9 +385,6 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
               message: `Seu pagamento foi rejeitado. Motivo: ${rejectionLabel}`,
               type: 'error'
             });
-          console.log('✅ Notificação de rejeição criada para atleta');
-        } else {
-          console.log('ℹ️ Notificação de rejeição não enviada (usuário é admin)');
         }
       }
 
@@ -484,7 +394,6 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
       loadPendingProofs();
 
     } catch (error) {
-      console.error('Erro ao rejeitar comprovante:', error);
       alert('Erro ao rejeitar comprovante: ' + error.message);
     } finally {
       setIsSubmitting(false);
@@ -493,26 +402,14 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
 
   const handleDownload = async (proof) => {
     try {
-      console.log('📁 Fazendo download do comprovante:', {
-        id: proof.id,
-        paymentId: proof.payment_id,
-        hasBase64: !!proof.proof_image_base64,
-        hasValidImage: proof.hasValidImage
-      });
-
-      // Se NÃO tem imagem carregada, buscar do banco AGORA (lazy loading)
       if (!proof.proof_image_base64) {
-        console.log('🔍 Buscando imagem do banco de dados (lazy loading)...');
         const { data, error } = await supabase
           .from('payment_proofs')
           .select('proof_image_base64, proof_image_type, proof_image_size, proof_file_url, storage_method')
           .eq('id', proof.id)
           .single();
 
-        if (error) {
-          console.error('❌ Erro ao buscar imagem:', error);
-          throw new Error('Erro ao carregar imagem do banco de dados');
-        }
+        if (error) throw new Error('Erro ao carregar imagem do banco de dados');
 
         // Atualizar o proof com a imagem carregada
         proof.proof_image_base64 = data.proof_image_base64;
@@ -521,12 +418,10 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
         proof.proof_file_url = data.proof_file_url;
         proof.storage_method = data.storage_method;
 
-        console.log('✅ Imagem carregada do banco de dados');
       }
 
       // Se tem imagem em base64, usar ela
       if (proof.proof_image_base64) {
-        console.log('✅ Usando imagem do banco de dados');
         
         // Converter base64 para blob
         const base64Data = proof.proof_image_base64.split(',')[1];
@@ -560,16 +455,13 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
         
         // Limpar URL
         window.URL.revokeObjectURL(url);
-        console.log('✅ Download via base64 executado');
         return;
       }
 
       // Se não tem base64, tentar URL (fallback)
       if (proof.proof_file_url && !isMalformedProofUrl(proof.proof_file_url)) {
-        console.log('🔄 Tentando URL como fallback');
         const newWindow = window.open(proof.proof_file_url, '_blank');
         if (newWindow) {
-          console.log('✅ Download via URL executado');
           return;
         }
       }
@@ -577,7 +469,6 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
       throw new Error('Nenhuma imagem válida encontrada para este comprovante');
 
     } catch (error) {
-      console.error('❌ Erro no download:', error);
       alert('Erro ao fazer download do comprovante. Entre em contato com o suporte.');
     }
   };
@@ -691,7 +582,6 @@ const PaymentProofReview = ({ supabase, currentUser, onClose }) => {
                               className="max-w-xs max-h-48 object-contain border border-gray-200 rounded cursor-pointer hover:opacity-75 transition-opacity"
                               onClick={() => handleDownload(proof)}
                               onError={(e) => {
-                                console.error('Erro ao carregar imagem:', proof.imageUrl);
                                 e.target.style.display = 'none';
                               }}
                             />

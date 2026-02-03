@@ -82,8 +82,7 @@ class SupabaseAdapter {
         group_name: null,
         group_type: null
       }));
-    } catch (error) {
-      console.error('Erro ao listar atletas:', error);
+    } catch {
       return [];
     }
   }
@@ -113,7 +112,6 @@ class SupabaseAdapter {
       if (error) throw error;
       return data;
     } catch (error) {
-      console.error('Erro ao adicionar atleta:', error);
       throw error;
     }
   }
@@ -140,8 +138,7 @@ class SupabaseAdapter {
 
       if (error) throw error;
       return true;
-    } catch (error) {
-      console.error('Erro ao atualizar sócio:', error);
+    } catch {
       return false;
     }
   }
@@ -155,8 +152,7 @@ class SupabaseAdapter {
 
       if (error) throw error;
       return true;
-    } catch (error) {
-      console.error('Erro ao deletar sócio:', error);
+    } catch {
       return false;
     }
   }
@@ -205,8 +201,7 @@ class SupabaseAdapter {
       }));
 
       return paymentsWithGroupName;
-    } catch (error) {
-      console.error('Erro ao listar pagamentos:', error);
+    } catch {
       return [];
     }
   }
@@ -231,8 +226,7 @@ class SupabaseAdapter {
 
       if (error) throw error;
       return data;
-    } catch (error) {
-      console.error('Erro ao adicionar pagamento:', error);
+    } catch {
       return null;
     }
   }
@@ -264,7 +258,6 @@ class SupabaseAdapter {
       if (error) throw error;
       return data;
     } catch (error) {
-      console.error('Erro ao atualizar pagamento:', error);
       throw error;
     }
   }
@@ -282,8 +275,7 @@ class SupabaseAdapter {
 
       if (error) throw error;
       return true;
-    } catch (error) {
-      console.error('Erro ao marcar pagamento como pago:', error);
+    } catch {
       return false;
     }
   }
@@ -301,48 +293,26 @@ class SupabaseAdapter {
 
       if (error) throw error;
       return true;
-    } catch (error) {
-      console.error('Erro ao marcar pagamentos em lote:', error);
+    } catch {
       return false;
     }
   }
 
   async deletePayment(id) {
     try {
-      console.log('🗑️ Tentando excluir pagamento:', id);
-
-      // 1. Primeiro excluir dados relacionados (em ordem de dependência)
-      // Excluir payment_proofs relacionados
-      const { error: proofsError } = await this.supabase
+      await this.supabase
         .from('payment_proofs')
         .delete()
         .eq('payment_id', id);
 
-      if (proofsError) {
-        console.error('Erro ao excluir payment_proofs:', proofsError);
-      } else {
-        console.log('✅ Payment proofs excluídos');
-      }
-
-      // 2. Excluir notificações relacionadas (sem usar related_payment_id para evitar erro 400)
-      // As notificações serão removidas pelo cleanup automático ou podem ser removidas manualmente se necessário
-      console.log('ℹ️ Notificações relacionadas não serão removidas automaticamente para evitar erro 400');
-
-      // 3. Agora excluir o pagamento principal
       const { error } = await this.supabase
         .from('payments')
         .delete()
         .eq('id', id);
 
-      if (error) {
-        console.error('❌ Erro ao deletar pagamento:', error);
-        throw error;
-      }
-
-      console.log('✅ Pagamento excluído com sucesso');
+      if (error) throw error;
       return true;
     } catch (error) {
-      console.error('❌ Erro ao deletar pagamento:', error);
 
       // Se ainda houver erro de constraint, informar o usuário
       if (error.code === '23503') {
@@ -369,8 +339,7 @@ class SupabaseAdapter {
       };
 
       return backup;
-    } catch (error) {
-      console.error('Erro ao exportar backup:', error);
+    } catch {
       return null;
     }
   }
@@ -418,8 +387,7 @@ class SupabaseAdapter {
       }
 
       return true;
-    } catch (error) {
-      console.error('Erro ao importar backup:', error);
+    } catch {
       return false;
     }
   }
@@ -466,8 +434,7 @@ class SupabaseAdapter {
         ...day,
         balance: day.income - day.expenses
       }));
-    } catch (error) {
-      console.error('Erro ao obter resumo mensal:', error);
+    } catch {
       return [];
     }
   }

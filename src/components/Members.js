@@ -263,7 +263,6 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase, currentUser }) => 
                                   return;
                                 }
 
-                                console.log('Resetando senha para:', member.id, member.full_name);
 
                                 if (!window.confirm(`Gerar nova senha para ${member.full_name}?`)) return;
                                 
@@ -279,8 +278,6 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase, currentUser }) => 
                                              process.env.REACT_APP_SUPABASE_URL?.replace('/rest/v1', '') + '/api/reset-password' ||
                                              'http://localhost:3001/api/reset-password';
                                 
-                                console.log('🔧 Chamando API de reset de senha:', apiUrl);
-
                                 try {
                                   // Chamar API backend
                                   const resp = await fetch(apiUrl, {
@@ -307,10 +304,7 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase, currentUser }) => 
                                   alert(`✅ Senha resetada com sucesso!\n\nNova senha: ${newPassword}\n\n(Senha copiada para a área de transferência)\n\n⚠️ O usuário será obrigado a trocar a senha no próximo login.`);
                                   
                                 } catch (apiError) {
-                                  console.error('Erro ao chamar API:', apiError);
-                                  
                                   // Fallback: Tentar método antigo (RPC + Edge Function)
-                                  console.log('⚠️ API não disponível, tentando métodos alternativos...');
                                   
                                   const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
                                   if (!supabaseUrl) {
@@ -329,15 +323,14 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase, currentUser }) => 
                                       alert(`⚠️ Senha gerada, mas pode não estar atualizada no auth.users.\n\nNova senha: ${newPassword}\n\n(Senha copiada para a área de transferência)\n\n⚠️ ATENÇÃO: Verifique se a senha funciona. Se não funcionar, atualize manualmente no Supabase Dashboard.`);
                                       return;
                                     }
-                                  } catch (rpcErr) {
-                                    console.log('RPC não disponível');
+                                  } catch {
+                                    // RPC não disponível
                                   }
 
                                   // Se chegou aqui, nenhum método funcionou
                                   throw new Error(apiError.message || 'Não foi possível resetar a senha. Verifique se a API está rodando.');
                                 }
                               } catch (e) {
-                                console.error('Erro completo no reset de senha:', e);
                                 alert('Erro ao resetar senha: ' + (e.message || 'desconhecido'));
                               }
                             }}

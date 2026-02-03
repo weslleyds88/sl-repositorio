@@ -23,13 +23,7 @@ import { scheduleCleanupProofs } from './utils/cleanupProofs';
 function AppContent() {
   const { isAuthenticated, isAdmin, currentUser, login, logout, loading, refreshUser } = useAuth();
   const dbMode = process.env.REACT_APP_DB_MODE || 'local';
-  const [db] = useState(() => {
-    console.log('🗄️ Modo de banco de dados:', dbMode);
-    if (dbMode === 'local') {
-      console.warn('⚠️ Usando modo LOCAL. Configure REACT_APP_DB_MODE=supabase no Cloudflare Pages!');
-    }
-    return createAdapter(dbMode);
-  });
+  const [db] = useState(() => createAdapter(dbMode));
   const [members, setMembers] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loadingData, setLoadingData] = useState(false);
@@ -58,21 +52,12 @@ function AppContent() {
     try {
       // Carregar membros e pagamentos em paralelo, mas tratar erros separadamente
       const membersPromise = isAdmin 
-        ? db.listMembers().catch(err => {
-            console.error('Erro ao carregar membros:', err);
-            return [];
-          })
+        ? db.listMembers().catch(() => [])
         : Promise.resolve([]);
       
       const paymentsPromise = (isAdmin || !currentUser?.id)
-        ? db.listPayments().catch(err => {
-            console.error('Erro ao carregar pagamentos:', err);
-            return [];
-          })
-        : db.listPayments({ member_id: currentUser.id }).catch(err => {
-            console.error('Erro ao carregar pagamentos do usuário:', err);
-            return [];
-          });
+        ? db.listPayments().catch(() => [])
+        : db.listPayments({ member_id: currentUser.id }).catch(() => []);
 
       const [membersData, paymentsData] = await Promise.all([
         membersPromise,
@@ -81,8 +66,7 @@ function AppContent() {
       
       setMembers(membersData || []);
       setPayments(paymentsData || []);
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+    } catch {
       setMembers([]);
       setPayments([]);
     } finally {

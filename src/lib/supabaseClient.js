@@ -10,20 +10,6 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
 const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
-// Log de debug para verificar configuração
-console.log('🔧 Configuração Supabase:');
-console.log('  - URL:', supabaseUrl ? '✅ Configurada' : '❌ AUSENTE');
-console.log('  - Key:', supabaseAnonKey ? '✅ Configurada' : '❌ AUSENTE');
-console.log('  - Ambiente:', process.env.NODE_ENV || 'desenvolvimento');
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('❌ Configurações do Supabase não encontradas!');
-  console.error('📋 Certifique-se de configurar no Cloudflare Pages:');
-  console.error('   - REACT_APP_SUPABASE_URL');
-  console.error('   - REACT_APP_SUPABASE_ANON_KEY');
-  console.error('📖 Veja: DEPLOY-CLOUDFLARE.md');
-}
-
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   auth: {
     persistSession: true,

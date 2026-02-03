@@ -8,11 +8,6 @@ import Notifications from './Notifications';
 import { formatDate, formatCurrency } from '../utils/dateUtils';
 
 const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, currentUser }) => {
-  console.log('🔍 Payments component loaded');
-  console.log('👤 Current user:', currentUser);
-  console.log('🏛️ Is admin:', isAdmin);
-  console.log('💰 Total payments:', payments.length);
-  console.log('👥 Total members:', members.length);
   const [showForm, setShowForm] = useState(false);
   const [editingPayment, setEditingPayment] = useState(null);
   const [groups, setGroups] = useState([]);
@@ -52,23 +47,18 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
   // Carregar grupos
   const loadGroups = useCallback(async () => {
     try {
-      console.log('🔍 Carregando grupos no Payments.js...');
       const { data: groupsData, error: groupsError } = await supabase
         .from('user_groups')
         .select('*')
         .order('name');
 
       if (groupsError) {
-        console.error('❌ Erro ao buscar grupos:', groupsError);
         setGroups([]);
         return;
       }
-
-      console.log('🏗️ Grupos encontrados no Payments.js:', groupsData);
       setGroups(groupsData || []);
 
-    } catch (error) {
-      console.error('❌ Erro ao carregar grupos:', error);
+    } catch {
       setGroups([]);
     }
   }, [supabase]);
@@ -144,17 +134,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
         p.due_date === payment.due_date
       );
 
-      console.log('🔍 Verificando pagamento de grupo:', {
-        paymentId: payment.id,
-        groupId: payment.group_id,
-        category: payment.category,
-        amount: payment.amount,
-        dueDate: payment.due_date,
-        status: payment.status,
-        allGroupPaymentsFound: allGroupPayments.length,
-        allGroupPaymentsStatuses: allGroupPayments.map(p => ({ id: p.id, status: p.status }))
-      });
-
       // Se tem group_id, é pagamento de grupo (mesmo com 1 pessoa)
       if (allGroupPayments.length >= 1) {
         // Este é um pagamento de grupo - mostrar apenas o primeiro como representativo
@@ -176,26 +155,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
 
           const totalGroupValue = groupMemberCount * parseFloat(payment.amount || 0);
           const pendingAmount = totalGroupValue - paidAmount;
-
-          console.log('✅ Pagamento de grupo detectado:', {
-            totalMembers: groupMemberCount,
-            individualAmount: payment.amount,
-            totalGroupValue: totalGroupValue,
-            paidAmount: paidAmount,
-            pendingAmount: pendingAmount,
-            paidCount: allGroupPayments.filter(p => p.status === 'paid').length,
-            partialCount: allGroupPayments.filter(p => p.status === 'pending' && p.paid_amount && parseFloat(p.paid_amount) > 0).length,
-            pendingCount: allGroupPayments.filter(p => p.status === 'pending' && (!p.paid_amount || parseFloat(p.paid_amount) === 0)).length,
-            groupPaymentsCount: allGroupPayments.length,
-            status: payment.status,
-            isFirstPayment: payment.id === firstPayment.id,
-            paymentDetails: allGroupPayments.map(p => ({
-              id: p.id,
-              status: p.status,
-              amount: p.amount,
-              paid_amount: p.paid_amount || 0
-            }))
-          });
 
           // Buscar nome do grupo
           const group = groups.find(g => g.id === payment.group_id);
@@ -223,8 +182,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
             groupName: groupName // Nome do grupo para exibição
           };
         } else {
-          // Este não é o primeiro pagamento do grupo, ignorar
-          console.log(' Ignorando pagamento duplicado do grupo:', payment.id);
           return null;
         }
       }
@@ -248,14 +205,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
   const totalPaid = sortedAndFilteredPayments.reduce((sum, p) => sum + (p.paidAmount || 0), 0);
   const totalExpected = sortedAndFilteredPayments.reduce((sum, p) => sum + (p.displayAmount || 0), 0);
 
-  console.log('📈 RESUMO GERAL:', {
-    totalPayments: sortedAndFilteredPayments.length,
-    totalPaid: totalPaid,
-    totalExpected: totalExpected,
-    progress: totalExpected > 0 ? Math.round((totalPaid / totalExpected) * 100) : 0,
-    pendingAmount: totalExpected - totalPaid
-  });
-
   // Calcular resumo por atleta
   const memberSummary = members.map(member => {
     const memberPayments = filteredPayments.filter(p => p.member_id === member.id);
@@ -273,8 +222,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
       paymentCount: memberPayments.length
     };
   }).filter(Boolean);
-
-  console.log('🏃 RESUMO POR ATLETA:', memberSummary);
 
   const handleAddPayment = () => {
     if (!isAdmin) {
@@ -305,12 +252,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
         observation: payment.observation
       };
 
-      console.log('📝 Editando pagamento de grupo:', {
-        original: payment,
-        edited: groupPayment,
-        totalPayments: payment.groupPayments.length
-      });
-
       setEditingPayment(groupPayment);
       setShowForm(true);
     } else {
@@ -324,11 +265,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
     if (!payment.isGroupPayment || !payment.groupPayments) return;
 
     try {
-      console.log('🔄 ========================================');
-      console.log('🔄 SINCRONIZANDO PAGAMENTOS DO GRUPO');
-      console.log('🔄 Grupo ID:', payment.group_id);
-      console.log('🔄 ========================================');
-
       // Buscar membros atuais do grupo
       const { data: currentMembers, error: membersError } = await supabase
         .from('user_group_members')
@@ -340,24 +276,16 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
       const currentMemberIds = currentMembers.map(m => m.user_id);
       const existingMemberIds = payment.groupPayments.map(p => p.member_id);
 
-      console.log('👥 Membros atuais no grupo:', currentMemberIds.length);
-      console.log('💰 Membros com pagamento:', existingMemberIds.length);
-
       // 1️⃣ ADICIONAR: Membros que NÃO têm pagamento ainda
       const newMembers = currentMembers.filter(m => !existingMemberIds.includes(m.user_id));
       
       // 2️⃣ REMOVER: Pagamentos de pessoas que NÃO estão mais no grupo
       const paymentsToRemove = payment.groupPayments.filter(p => !currentMemberIds.includes(p.member_id));
 
-      console.log('➕ Novos membros a adicionar:', newMembers.length);
-      console.log('➖ Membros a remover:', paymentsToRemove.length);
-
       let changes = [];
 
       // Criar/Reintegrar pagamentos para novos membros
       if (newMembers.length > 0) {
-        console.log('🔍 Verificando pagamentos órfãos antes de criar novos...');
-        
         let reintegratedCount = 0;
         let createdCount = 0;
         const paymentsToCreate = [];
@@ -365,8 +293,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
 
         // Para cada novo membro, verificar se existe pagamento órfão DO MESMO GRUPO
         for (const member of newMembers) {
-          console.log(`🔎 Verificando pagamentos órfãos para membro ${member.user_id}...`);
-          
           // Buscar pagamento órfão (group_id = null) com mesma categoria, valor e vencimento
           const { data: orphanPayments, error: orphanError } = await supabase
             .from('payments')
@@ -378,50 +304,25 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
             .eq('due_date', payment.due_date)
             .order('created_at', { ascending: false });
 
-          if (orphanError) {
-            console.warn('⚠️ Erro ao buscar pagamento órfão:', orphanError);
-          }
-
           // Se encontrou pagamento órfão, verificar se é do MESMO grupo original
           let orphanToReintegrate = null;
           
           if (orphanPayments && orphanPayments.length > 0) {
-            console.log(`🔍 Encontrado ${orphanPayments.length} pagamento(s) órfão(s) com mesmas características`);
-            
-            // Procurar por pagamento órfão que seja DO MESMO GRUPO
             for (const orphan of orphanPayments) {
               const observation = orphan.observation || '';
-              
-              // Verificar se a observação contém o ID do grupo original
               if (observation.includes(`ID original: ${payment.group_id}`)) {
-                console.log(`✅ Pagamento órfão ID ${orphan.id} é do MESMO grupo! Pode reintegrar.`);
                 orphanToReintegrate = orphan;
                 break;
-              } else {
-                console.log(`⚠️ Pagamento órfão ID ${orphan.id} é de OUTRO grupo. Não reintegrar.`);
               }
             }
           }
 
-          // Se encontrou pagamento órfão DO MESMO GRUPO, reintegrar
           if (orphanToReintegrate) {
-            console.log(`🔄 REINTEGRANDO pagamento órfão ID ${orphanToReintegrate.id} para membro ${member.user_id}`);
-            console.log(`   - Status: ${orphanToReintegrate.status}`);
-            console.log(`   - Observação antiga: ${orphanToReintegrate.observation}`);
-            console.log(`   - É do MESMO grupo: ${payment.group_id}`);
-            
             paymentsToReintegrate.push({
               id: orphanToReintegrate.id,
               status: orphanToReintegrate.status // Mantém o status original (paid se já foi pago)
             });
           } else {
-            // Não encontrou órfão DO MESMO GRUPO, criar novo pagamento
-            if (orphanPayments && orphanPayments.length > 0) {
-              console.log(`⚠️ Pagamentos órfãos encontrados, mas são de OUTROS grupos. Criando novo.`);
-            } else {
-              console.log(`➕ Nenhum pagamento órfão encontrado. Criando NOVO pagamento para membro ${member.user_id}`);
-            }
-            
             paymentsToCreate.push({
               amount: parseFloat(payment.amount),
               category: payment.category,
@@ -436,10 +337,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           }
         }
 
-        // Reintegrar pagamentos órfãos
         if (paymentsToReintegrate.length > 0) {
-          console.log(`🔄 Reintegrando ${paymentsToReintegrate.length} pagamento(s) órfão(s)...`);
-          
           for (const orphanPayment of paymentsToReintegrate) {
             const { error: updateError } = await supabase
               .from('payments')
@@ -449,27 +347,16 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
               })
               .eq('id', orphanPayment.id);
 
-            if (updateError) {
-              console.error('❌ Erro ao reintegrar pagamento:', updateError);
-            } else {
-              reintegratedCount++;
-              console.log(`✅ Pagamento ${orphanPayment.id} reintegrado (status mantido: ${orphanPayment.status})`);
-            }
+            if (!updateError) reintegratedCount++;
           }
         }
 
-        // Criar novos pagamentos
         if (paymentsToCreate.length > 0) {
-          console.log(`➕ Criando ${paymentsToCreate.length} novo(s) pagamento(s)...`);
-          
           const { error: insertError } = await supabase
             .from('payments')
             .insert(paymentsToCreate);
-
           if (insertError) throw insertError;
-          
           createdCount = paymentsToCreate.length;
-          console.log(`✅ ${createdCount} novos pagamentos criados`);
         }
 
         // Criar notificações para TODOS os novos membros (reintegrados ou novos)
@@ -484,10 +371,8 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           await supabase
             .from('notifications')
             .insert(notifications);
-          
-          console.log('✅ Notificações enviadas para novos membros');
-        } catch (notifError) {
-          console.warn('⚠️ Erro ao criar notificações (não crítico):', notifError);
+        } catch {
+          // notificações não crítico
         }
 
         // Mensagem de feedback
@@ -499,8 +384,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           addMessage += ` (${createdCount} novo(s))`;
         }
         changes.push(addMessage);
-        
-        console.log(`✅ Resumo: ${reintegratedCount} reintegrados + ${createdCount} novos = ${newMembers.length} total`);
       }
 
       // Remover pagamentos de membros que saíram do grupo
@@ -512,7 +395,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           const confirmMsg = `⚠️ ATENÇÃO: ${paidPayments.length} atleta(s) que saiu/saíram do grupo já tinha(m) pagamento APROVADO.\n\nDeseja realmente remover do grupo?\n\n✅ Pagamentos COM ticket: Serão desassociados do grupo mas PRESERVADOS no histórico\n🗑️ Pagamentos SEM ticket: Serão completamente removidos`;
           
           if (!window.confirm(confirmMsg)) {
-            console.log('❌ Remoção cancelada pelo usuário');
             if (newMembers.length > 0) {
               alert(changes.join('\n'));
               await onRefresh();
@@ -522,42 +404,28 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
         }
 
         const paymentIdsToRemove = paymentsToRemove.map(p => p.id);
-        
-        console.log('🗑️ Removendo pagamentos:', paymentIdsToRemove);
-        
+
         // PASSO 1: Verificar se há tickets relacionados (para preservá-los)
         const { data: relatedTickets, error: ticketsCheckError } = await supabase
           .from('payment_tickets')
           .select('id, payment_id')
           .in('payment_id', paymentIdsToRemove);
 
-        if (ticketsCheckError) {
-          console.warn('⚠️ Erro ao verificar tickets:', ticketsCheckError);
-        }
-
         const paymentsWithTickets = relatedTickets?.map(t => t.payment_id) || [];
         const paymentsWithoutTickets = paymentIdsToRemove.filter(id => !paymentsWithTickets.includes(id));
-
-        console.log('🎫 Pagamentos com tickets (preservar histórico):', paymentsWithTickets.length);
-        console.log('🗑️ Pagamentos sem tickets (deletar):', paymentsWithoutTickets.length);
 
         // PASSO 2: Para pagamentos COM tickets, apenas desassociar do grupo (manter histórico)
         if (paymentsWithTickets.length > 0) {
           // Atualizar cada pagamento individualmente para incluir o group_id original na observação
           for (const paymentId of paymentsWithTickets) {
-            const { error: updateError } = await supabase
+            await supabase
               .from('payments')
               .update({ 
                 group_id: null,
                 observation: `Atleta removido do grupo (ID original: ${payment.group_id}) - histórico preservado`
               })
               .eq('id', paymentId);
-
-            if (updateError) {
-              console.error('❌ Erro ao desassociar pagamento:', paymentId, updateError);
-            }
           }
-          console.log('✅ Pagamentos com tickets desassociados do grupo (histórico preservado com ID original)');
         }
 
         // PASSO 3: Para pagamentos SEM tickets, deletar comprovantes e pagamentos
@@ -568,12 +436,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
             .delete()
             .in('payment_id', paymentsWithoutTickets);
 
-          if (proofsDeleteError) {
-            console.warn('⚠️ Erro ao deletar comprovantes:', proofsDeleteError);
-          } else {
-            console.log('✅ Comprovantes removidos');
-          }
-
           // Deletar pagamentos
           const { error: deleteError } = await supabase
             .from('payments')
@@ -581,8 +443,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
             .in('id', paymentsWithoutTickets);
 
           if (deleteError) throw deleteError;
-
-          console.log(`✅ ${paymentsWithoutTickets.length} pagamentos deletados`);
         }
 
         let removalMsg = `➖ ${paymentsToRemove.length} atleta(s) removido(s)`;
@@ -590,11 +450,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           removalMsg += ` (${paymentsWithTickets.length} com ticket preservado para histórico)`;
         }
         changes.push(removalMsg);
-        console.log(`✅ Remoção concluída:`, {
-          total: paymentsToRemove.length,
-          comTickets: paymentsWithTickets.length,
-          semTickets: paymentsWithoutTickets.length
-        });
       }
 
       if (changes.length === 0) {
@@ -602,11 +457,8 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
       } else {
         alert('✅ Sincronização concluída!\n\n' + changes.join('\n'));
       }
-      
-      console.log('🔄 ========================================');
       await onRefresh();
     } catch (error) {
-      console.error('❌ Erro ao sincronizar:', error);
       alert('Erro ao sincronizar: ' + error.message);
     }
   };
@@ -636,7 +488,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
       await onRefresh();
       alert('✅ Sincronização em massa concluída!');
     } catch (error) {
-      console.error('❌ Erro na sincronização em massa:', error);
       alert('Erro na sincronização em massa: ' + (error.message || 'Erro desconhecido'));
     }
   };
@@ -673,10 +524,8 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
           }
         }
 
-        console.log('✅ Pagamentos excluídos com sucesso');
         onRefresh();
       } catch (error) {
-        console.error('❌ Erro na exclusão:', error);
         if (error.message?.includes('comprovantes') || error.message?.includes('notificações')) {
           alert('💡 Dica: Os dados relacionados foram removidos automaticamente. Os pagamentos foram excluídos com sucesso!');
           onRefresh();
@@ -714,13 +563,11 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
         // Marcar todos os pagamentos do grupo como pagos
         const success = await db.markPaidBulk(paymentIdsToMark);
         if (success) {
-          console.log('✅ Pagamentos marcados como pagos com sucesso');
           onRefresh();
         } else {
           alert('Erro ao marcar pagamento(s) como pago(s)');
         }
       } catch (error) {
-        console.error('Erro ao marcar como pago:', error);
         alert('Erro ao marcar pagamento(s) como pago(s): ' + (error.message || 'Erro desconhecido'));
       }
     }
@@ -742,16 +589,10 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
     );
   };
 
-  const handleFormSubmit = async (paymentData) => {
-    // O PaymentForm já fez o UPDATE/INSERT direto no banco
-    // Aqui só precisamos fechar o modal e atualizar os dados
-    console.log('✅ Pagamento salvo pelo PaymentForm, atualizando interface...');
+  const handleFormSubmit = async () => {
     setShowForm(false);
     setEditingPayment(null);
-    console.log('🔄 Chamando onRefresh para atualizar dados...');
-    // Aguardar o refresh dos dados antes de continuar
     await onRefresh();
-    console.log('✅ Dados atualizados com sucesso! A barrinha deve atualizar agora.');
   };
 
   const handleFormCancel = () => {
@@ -1148,15 +989,7 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                           <>
                             {payment.isGroupPayment && payment.groupPayments && payment.groupPayments.length > 0 ? (
                               <button
-                                onClick={() => {
-                                  console.log('🔄 Clicou em sincronizar para pagamento:', payment);
-                                  console.log('🔄 Dados do grupo:', {
-                                    groupId: payment.group_id,
-                                    groupPayments: payment.groupPayments.length,
-                                    groupMemberCount: payment.groupMemberCount
-                                  });
-                                  handleSyncGroupPayments(payment);
-                                }}
+                                onClick={() => handleSyncGroupPayments(payment)}
                                 className="text-purple-600 hover:text-purple-900 transition-colors"
                                 title={`🔄 Sincronizar grupo: adicionar novos atletas e remover atletas que saíram (${payment.groupMemberCount} no grupo)`}
                               >
@@ -1165,15 +998,9 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                                 </svg>
                               </button>
                             ) : (
-                              payment.isGroupPayment && (
-                                <div style={{width: '20px'}} title="Grupo sem dados de sincronização">
-                                  {console.log('⚠️ Botão não renderizado para:', payment.id, 'Motivo:', {
-                                    isGroupPayment: payment.isGroupPayment,
-                                    hasGroupPayments: !!payment.groupPayments,
-                                    groupPaymentsLength: payment.groupPayments?.length
-                                  })}
-                                </div>
-                              )
+                              payment.isGroupPayment ? (
+                                <div style={{width: '20px'}} title="Grupo sem dados de sincronização" />
+                              ) : null
                             )}
                             <button
                               onClick={() => handleMarkPaid(payment.id)}
@@ -1671,15 +1498,6 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
                   return null;
                 }
               }
-
-              console.log(`👤 Resumo de ${member.full_name}:`, {
-                totalPayments: memberPayments.length,
-                totalExpected,
-                totalPaid,
-                totalPending,
-                paidCount: memberPayments.filter(p => p.status === 'paid').length,
-                pendingCount: memberPayments.filter(p => p.status === 'pending').length
-              });
 
               return (
                 <div key={member.id} className="card p-4">

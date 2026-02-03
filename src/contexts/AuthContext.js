@@ -57,13 +57,10 @@ export function AuthProvider({ children }) {
       }
 
       if (profileError || !profile) {
-        console.error('Erro ao verificar status da conta:', profileError);
         return true; // Em caso de erro, permitir continuar
       }
 
-      // 1. Verificar se a conta foi desativada
       if (profile?.account_status === 'inactive') {
-        console.log('🚫 Conta desativada pelo administrador. Fazendo logout...');
         alert('Sua conta foi desativada pelo administrador. Você será desconectado.');
         
         // Fazer logout do Supabase
@@ -80,15 +77,8 @@ export function AuthProvider({ children }) {
         return false;
       }
 
-      // 2. Verificar se o role mudou
       const newIsAdmin = profile?.role === 'admin';
       if (newIsAdmin !== isAdmin) {
-        console.log('🔄 Role do usuário mudou:', { 
-          antes: isAdmin ? 'admin' : 'user', 
-          depois: newIsAdmin ? 'admin' : 'user' 
-        });
-        
-        // Atualizar o estado do admin
         setIsAdmin(newIsAdmin);
         
         // Atualizar o currentUser com o novo role
@@ -107,8 +97,7 @@ export function AuthProvider({ children }) {
       }
 
       return true;
-    } catch (error) {
-      console.error('Erro ao verificar status da conta:', error);
+    } catch {
       return true;
     }
   };
@@ -122,9 +111,7 @@ export function AuthProvider({ children }) {
     // Verificar em eventos de interação do usuário
     const handleUserAction = () => {
       if (isMounted) {
-        checkAccountStatus().catch(err => {
-          console.error('Erro ao verificar status:', err);
-        });
+        checkAccountStatus().catch(() => {});
       }
     };
 
@@ -135,9 +122,7 @@ export function AuthProvider({ children }) {
     // Verificar ao carregar a página (com delay para não bloquear o carregamento inicial)
     const timeoutId = setTimeout(() => {
       if (isMounted) {
-        checkAccountStatus().catch(err => {
-          console.error('Erro ao verificar status:', err);
-        });
+        checkAccountStatus().catch(() => {});
       }
     }, 1000);
 
@@ -191,8 +176,8 @@ export function AuthProvider({ children }) {
             setCurrentUser(profile);
           }
         }
-      } catch (error) {
-        console.error('Erro ao buscar dados do usuário:', error);
+      } catch {
+        // falha ao buscar dados do usuário
       }
     }
   };
@@ -233,10 +218,7 @@ export function AuthProvider({ children }) {
         }
       }
 
-      if (profileError) {
-        console.error('Erro ao buscar perfil atualizado:', profileError);
-        return;
-      }
+      if (profileError) return;
 
       if (profile) {
         setCurrentUser(profile);
@@ -247,8 +229,8 @@ export function AuthProvider({ children }) {
           setIsAdmin(newIsAdmin);
         }
       }
-    } catch (error) {
-      console.error('Erro ao atualizar dados do usuário:', error);
+    } catch {
+      // falha ao atualizar dados do usuário
     }
   };
 
