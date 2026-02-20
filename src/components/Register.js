@@ -120,31 +120,17 @@ function Register({ onRegisterSuccess, onBackToLogin }) {
       if (error) throw error;
 
       if (data.user) {
-        console.log('✅ Usuário criado no auth:', data.user.id);
-
-        // Converter foto para base64 (igual fazemos com comprovantes!)
         let avatarBase64 = null;
         try {
-          console.log('📸 Convertendo foto para base64...');
-          
-          avatarBase64 = photoPreview; // Já temos o base64 do preview!
-          
+          avatarBase64 = photoPreview;
           if (!avatarBase64 || !avatarBase64.startsWith('data:image')) {
             throw new Error('Foto inválida');
           }
-          
-          console.log('✅ Foto convertida para base64!');
-          console.log('🔍 Tamanho do base64:', avatarBase64.length);
         } catch (photoError) {
-          console.error('❌ Erro ao processar foto:', photoError);
           throw new Error('Erro ao processar foto de perfil');
         }
 
-        // Criar perfil manualmente na tabela profiles
         try {
-          console.log('💾 Salvando perfil no banco...');
-          console.log('📸 Avatar base64 (primeiros 50 chars):', avatarBase64?.substring(0, 50));
-          
           const profileToInsert = {
             id: data.user.id,
             email: formData.email,
@@ -157,29 +143,18 @@ function Register({ onRegisterSuccess, onBackToLogin }) {
             position: formData.position,
             responsible_name: formData.responsibleName || null,
             responsible_phone: formData.responsiblePhone || null,
-            avatar_url: avatarBase64, // Salvando base64 ao invés de URL!
+            avatar_url: avatarBase64,
             role: 'athlete',
             status: 'pending'
           };
           
-          console.log('📋 Dados completos a inserir (sem base64 completo):', {
-            ...profileToInsert,
-            avatar_url: avatarBase64 ? `[BASE64 - ${avatarBase64.length} chars]` : null
-          });
-          
-          const { data: profileData, error: insertError } = await supabase
+          const { error: insertError } = await supabase
             .from('profiles')
             .insert(profileToInsert)
             .select()
             .single();
 
           if (insertError) {
-            console.error('❌ Erro ao criar perfil:', insertError);
-
-            // Tentar atualizar se já existe
-            console.log('⚠️ Insert falhou, tentando UPDATE...');
-            console.log('📸 Avatar base64 no UPDATE (primeiros 50 chars):', avatarBase64?.substring(0, 50));
-            
             const updateData = {
               full_name: formData.fullName,
               birth_date: formData.birthDate,
@@ -190,14 +165,9 @@ function Register({ onRegisterSuccess, onBackToLogin }) {
               position: formData.position,
               responsible_name: formData.responsibleName || null,
               responsible_phone: formData.responsiblePhone || null,
-              avatar_url: avatarBase64, // Salvando base64 ao invés de URL!
+              avatar_url: avatarBase64,
               status: 'pending'
             };
-            
-            console.log('📋 Dados do UPDATE (sem base64 completo):', {
-              ...updateData,
-              avatar_url: avatarBase64 ? `[BASE64 - ${avatarBase64.length} chars]` : null
-            });
             
             const { error: updateError } = await supabase
               .from('profiles')
@@ -205,30 +175,10 @@ function Register({ onRegisterSuccess, onBackToLogin }) {
               .eq('id', data.user.id);
 
             if (updateError) {
-              console.error('❌ Erro ao atualizar perfil:', updateError);
               throw new Error('Não foi possível criar perfil do usuário');
-            } else {
-              console.log('✅ Perfil atualizado com sucesso');
             }
-          } else {
-            console.log('✅ Perfil criado com sucesso:', profileData);
           }
-          
-          // VERIFICAR o que foi salvo no banco
-          const { data: savedProfile } = await supabase
-            .from('profiles')
-            .select('id, full_name, avatar_url')
-            .eq('id', data.user.id)
-            .single();
-          
-          console.log('🔍 VERIFICAÇÃO FINAL - Perfil salvo no banco:');
-          console.log('   Nome:', savedProfile?.full_name);
-          console.log('   Avatar (primeiros 50 chars):', savedProfile?.avatar_url?.substring(0, 50));
-          console.log('   É base64?', savedProfile?.avatar_url?.startsWith('data:image'));
-          console.log('   Tamanho do base64:', savedProfile?.avatar_url?.length);
-          
         } catch (profileError) {
-          console.error('❌ Erro geral ao criar perfil:', profileError);
           throw profileError;
         }
 

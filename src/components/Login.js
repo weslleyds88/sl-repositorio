@@ -184,8 +184,8 @@ function Login({ onLogin }) {
     }
   };
 
-  const handleRegisterSuccess = (email) => {
-    setError(`Conta criada com sucesso! Um email foi enviado para ${email}. Aguarde a aprovação do administrador.`);
+  const handleRegisterSuccess = () => {
+    setError('Conta criada com sucesso! Aguarde a aprovação do administrador para acessar o sistema.');
     setShowRegister(false);
   };
 

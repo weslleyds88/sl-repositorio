@@ -8,17 +8,13 @@ const Notifications = ({ supabase, currentUser, isVisible = true }) => {
   const createNotificationsTable = useCallback(async () => {
     try {
       await supabase.rpc('create_notifications_table_if_not_exists');
-      console.log('✅ Tabela notifications criada');
     } catch (createError) {
-      console.error('❌ Erro ao criar tabela:', createError);
       throw createError;
     }
   }, [supabase]);
 
   const loadNotifications = useCallback(async () => {
     if (!currentUser) return;
-
-    console.log('🔍 Carregando notificações para usuário:', currentUser.id);
 
     try {
       // Query direta para notificações não lidas do usuário atual
@@ -31,9 +27,7 @@ const Notifications = ({ supabase, currentUser, isVisible = true }) => {
         .order('created_at', { ascending: false })
         .limit(50);
 
-      // Se erro de coluna não encontrada, tentar com 'is_read'
       if (error && error.code === '42703') {
-        console.log('🔄 Coluna read não encontrada, tentando com is_read...');
         const result = await supabase
           .from('notifications')
           .select('*')
@@ -46,9 +40,7 @@ const Notifications = ({ supabase, currentUser, isVisible = true }) => {
         error = result.error;
       }
 
-      // Se ainda erro, tentar sem filtro de leitura
       if (error && error.code === '42703') {
-        console.log('🔄 Coluna de leitura não encontrada, carregando todas as notificações...');
         const result = await supabase
           .from('notifications')
           .select('*')
@@ -60,32 +52,21 @@ const Notifications = ({ supabase, currentUser, isVisible = true }) => {
         error = result.error;
       }
 
-      console.log('📊 Query result:', { data, error });
-
       if (error) {
-        console.error('❌ Erro na query:', error);
-        // Se erro 42P01 (tabela não existe), criar tabela
         if (error.code === '42P01' || error.message?.includes('relation "notifications" does not exist')) {
-          console.log('📝 Tabela notifications não existe, criando...');
           try {
             await createNotificationsTable();
-            // Recarregar após criar tabela
             await loadNotifications();
             return;
           } catch (createError) {
-            console.error('❌ Erro ao criar tabela:', createError);
             throw createError;
           }
         }
         throw error;
       }
 
-      console.log('✅ Notificações do usuário (não lidas):', data?.length || 0);
-      console.log('📋 Notificações encontradas:', data?.map(n => ({ id: n.id, title: n.title, type: n.type })) || []);
-
       setNotifications(data || []);
-    } catch (error) {
-      console.error('❌ Erro ao carregar notificações:', error);
+    } catch {
       setNotifications([]);
     }
   }, [currentUser, supabase, createNotificationsTable]);
@@ -98,9 +79,7 @@ const Notifications = ({ supabase, currentUser, isVisible = true }) => {
         .update({ read: true })
         .eq('id', notificationId);
 
-      // Se erro de coluna não encontrada, tentar com 'is_read'
       if (error && error.code === '42703') {
-        console.log('🔄 Tentando com coluna is_read...');
         const result = await supabase
           .from('notifications')
           .update({ is_read: true })
@@ -108,20 +87,13 @@ const Notifications = ({ supabase, currentUser, isVisible = true }) => {
         error = result.error;
       }
 
-      // Se ainda erro, apenas remover da lista local
       if (error) {
-        console.error('❌ Erro ao marcar notificação como lida:', error);
-        // Mesmo com erro, remover da lista local para melhor UX
         setNotifications(prev => prev.filter(n => n.id !== notificationId));
         return;
       }
 
-      // Remover notificação da lista local
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
-      console.log('✅ Notificação marcada como lida e removida da lista');
-    } catch (error) {
-      console.error('❌ Erro ao marcar notificação como lida:', error);
-      // Mesmo com erro, remover da lista local
+    } catch {
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
     }
   };
@@ -137,9 +109,7 @@ const Notifications = ({ supabase, currentUser, isVisible = true }) => {
         .eq('user_id', currentUser.id)
         .eq('read', false);
 
-      // Se erro de coluna não encontrada, tentar com 'is_read'
       if (error && error.code === '42703') {
-        console.log('🔄 Tentando com coluna is_read...');
         const result = await supabase
           .from('notifications')
           .update({ is_read: true })
@@ -149,18 +119,12 @@ const Notifications = ({ supabase, currentUser, isVisible = true }) => {
       }
 
       if (error) {
-        console.error('❌ Erro ao marcar todas como lidas:', error);
-        // Mesmo com erro, limpar lista local para melhor UX
         setNotifications([]);
         return;
       }
 
-      // Limpar lista local
       setNotifications([]);
-      console.log('✅ Todas as notificações marcadas como lidas');
-    } catch (error) {
-      console.error('❌ Erro ao marcar todas como lidas:', error);
-      // Mesmo com erro, limpar lista local
+    } catch {
       setNotifications([]);
     }
   };
