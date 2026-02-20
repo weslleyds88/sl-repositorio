@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import MemberForm from './MemberForm';
 import { formatDate } from '../utils/dateUtils';
 
@@ -8,13 +8,11 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase, currentUser }) => 
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc' ou 'desc'
 
-  const sourceList = members || [];
-
-  // Memoizar filtros e ordenação para evitar recálculos desnecessários
   const sortedAndFilteredMembers = useMemo(() => {
-    if (!sourceList || sourceList.length === 0) return [];
-    
-    const filtered = sourceList.filter(member =>
+    const list = members || [];
+    if (list.length === 0) return [];
+
+    const filtered = list.filter(member =>
       member && member.full_name && (
     member.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (member.phone && member.phone.includes(searchTerm))
@@ -32,7 +30,7 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase, currentUser }) => 
       return nameB.localeCompare(nameA);
     }
   });
-  }, [sourceList, searchTerm, sortOrder]);
+  }, [members, searchTerm, sortOrder]);
 
   // Removido: criação manual pelo admin (cadastro vem pelo fluxo de registro)
 
