@@ -8,14 +8,19 @@ class SupabaseAdapter {
   }
 
   // MEMBERS
-  async listMembers() {
+  // forAdmin: true = todos os status (admin); false/omitido = só aprovados
+  async listMembers(opts = {}) {
     try {
-      // Buscar apenas os perfis (sem join que pode não existir no schema)
-      const { data: profiles, error: profilesError } = await this.supabase
+      const forAdmin = opts.forAdmin === true;
+      const columns = 'id, email, full_name, phone, position, role, status, account_status, created_at, observation, birth_date, rg, region, gender, responsible_name, responsible_phone, avatar_url';
+      let query = this.supabase
         .from('profiles')
-        .select('*')
-        .eq('status', 'approved')
+        .select(columns)
         .order('full_name');
+      if (!forAdmin) {
+        query = query.eq('status', 'approved');
+      }
+      const { data: profiles, error: profilesError } = await query;
 
       if (profilesError) throw profilesError;
 

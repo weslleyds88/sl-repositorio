@@ -136,7 +136,7 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
       const cashAvailable = allTimeIncome - allTimeCashOutflows;
 
       return {
-        totalAthletes: members.length,
+        totalAthletes: members.filter(m => m && m.status === 'approved').length,
         totalIncome,
         totalExpenses, // Total de despesas (pagas + pendentes)
         totalPaidExpenses: totalPaidExpenses + totalCashOutflows, // Despesas efetivamente pagas

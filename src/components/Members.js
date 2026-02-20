@@ -6,12 +6,9 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase, currentUser }) => 
   const [showForm, setShowForm] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [allUsers, setAllUsers] = useState(null); // quando admin, carrega lista completa com avatar
-  const [loadingUsers, setLoadingUsers] = useState(false);
-
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc' ou 'desc'
 
-  const sourceList = allUsers !== null && isAdmin ? allUsers : members;
+  const sourceList = members || [];
 
   // Memoizar filtros e ordenação para evitar recálculos desnecessários
   const sortedAndFilteredMembers = useMemo(() => {
@@ -87,29 +84,6 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase, currentUser }) => 
     setEditingMember(null);
   };
 
-  // Carregar lista completa de usuários (com avatar) quando admin
-  useEffect(() => {
-    const loadAll = async () => {
-      if (!isAdmin || !supabase) return;
-      setLoadingUsers(true);
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, email, full_name, phone, position, role, status, account_status, avatar_url, created_at, observation, birth_date, rg, region, gender, responsible_name, responsible_phone')
-          .order('created_at', { ascending: false });
-        if (error) throw error;
-        setAllUsers(data || []);
-      } catch (e) {
-        console.error('Erro ao carregar usuários:', e);
-        setAllUsers(null);
-      } finally {
-        setLoadingUsers(false);
-      }
-    };
-    loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, supabase]);
-
   return (
     <div className="p-6">
       <div className="space-y-6">
@@ -144,12 +118,7 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase, currentUser }) => 
       </div>
 
       <div className="card">
-        {loadingUsers ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Carregando atletas...</p>
-          </div>
-        ) : sortedAndFilteredMembers.length > 0 ? (
+        {sortedAndFilteredMembers.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -400,7 +369,7 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase, currentUser }) => 
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total de Atletas</p>
-              <p className="text-2xl font-bold text-gray-900">{members.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{members.filter(m => m && m.status === 'approved').length}</p>
             </div>
           </div>
         </div>
@@ -415,7 +384,7 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase, currentUser }) => 
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Com Telefone</p>
               <p className="text-2xl font-bold text-gray-900">
-                {members.filter(m => m.phone).length}
+                {(members || []).filter(m => m && m.phone).length}
               </p>
             </div>
           </div>
@@ -431,7 +400,7 @@ const Members = ({ db, members, onRefresh, isAdmin, supabase, currentUser }) => 
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Com Observações</p>
               <p className="text-2xl font-bold text-gray-900">
-                {members.filter(m => m.observation).length}
+                {(members || []).filter(m => m && m.observation).length}
               </p>
             </div>
           </div>

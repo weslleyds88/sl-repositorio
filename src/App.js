@@ -52,7 +52,7 @@ function AppContent() {
     try {
       // Carregar membros e pagamentos em paralelo, mas tratar erros separadamente
       const membersPromise = isAdmin 
-        ? db.listMembers().catch(() => [])
+        ? db.listMembers({ forAdmin: true }).catch(() => [])
         : Promise.resolve([]);
       
       const paymentsPromise = (isAdmin || !currentUser?.id)
