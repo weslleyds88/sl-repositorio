@@ -36,9 +36,7 @@ class SupabaseAdapter {
       try {
         // Buscar membros dos grupos (pode falhar se a tabela não existir ou não houver dados)
         const { data: groupMembers, error: groupMembersError } = await this.supabase
-          .from('user_group_members')
-          .select('user_id, group_id')
-          .in('user_id', memberIds);
+          .rpc('get_user_group_members', { ids: memberIds });
 
         if (!groupMembersError && groupMembers && groupMembers.length > 0) {
           // Buscar informações dos grupos
