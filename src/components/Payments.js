@@ -137,7 +137,9 @@ const Payments = ({ db, members, payments, onRefresh, isAdmin, supabase, current
       // Se tem group_id, é pagamento de grupo (mesmo com 1 pessoa)
       if (allGroupPayments.length >= 1) {
         // Este é um pagamento de grupo - mostrar apenas o primeiro como representativo
-        const firstPayment = allGroupPayments.sort((a, b) => a.member_id.localeCompare(b.member_id))[0];
+        const firstPayment = allGroupPayments.sort((a, b) => 
+          (a.member_id || '').localeCompare(b.member_id || '')
+        )[0];
         if (payment.id === firstPayment.id) {
           // A contagem correta de membros é o próprio length dos pagamentos do grupo
           const groupMemberCount = allGroupPayments.length;
