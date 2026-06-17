@@ -163,47 +163,57 @@ class SupabaseAdapter {
   // PAYMENTS
   async listPayments(filters = {}) {
     try {
-      // Selecionar apenas colunas necessárias para reduzir payload
-      let query = this.supabase
-        .from('payments')
-        .select(`
+      const PAGE_SIZE = 1000;
+      const selectColumns = `
           id, member_id, group_id, amount, category, status, paid_amount, due_date, observation, pix_key, pix_name, created_at,
           user_groups ( name )
-        `);
+        `;
 
-      if (filters.member_id) {
-        query = query.eq('member_id', filters.member_id);
+      const applyFilters = (query) => {
+        if (filters.member_id) {
+          query = query.eq('member_id', filters.member_id);
+        }
+        if (filters.status) {
+          query = query.eq('status', filters.status);
+        }
+        if (filters.category) {
+          query = query.eq('category', filters.category);
+        }
+        if (filters.month) {
+          const [year, month] = filters.month.split('-');
+          const startDate = `${year}-${month}-01`;
+          const endDate = `${year}-${month}-31`;
+          query = query.gte('due_date', startDate).lte('due_date', endDate);
+        }
+        return query
+          .order('due_date', { ascending: false })
+          .order('created_at', { ascending: false });
+      };
+
+      const allData = [];
+      let page = 0;
+
+      while (true) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        const { data, error } = await applyFilters(
+          this.supabase.from('payments').select(selectColumns)
+        ).range(from, to);
+
+        if (error) throw error;
+
+        const batch = data || [];
+        allData.push(...batch);
+
+        if (batch.length < PAGE_SIZE) break;
+        page += 1;
       }
 
-      if (filters.status) {
-        query = query.eq('status', filters.status);
-      }
-
-      if (filters.category) {
-        query = query.eq('category', filters.category);
-      }
-
-      if (filters.month) {
-        const [year, month] = filters.month.split('-');
-        const startDate = `${year}-${month}-01`;
-        const endDate = `${year}-${month}-31`;
-        query = query.gte('due_date', startDate).lte('due_date', endDate);
-      }
-
-      query = query.order('due_date', { ascending: false })
-                   .order('created_at', { ascending: false });
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      
-      // Transformar dados para incluir groupName diretamente no objeto
-      const paymentsWithGroupName = (data || []).map(payment => ({
+      return allData.map(payment => ({
         ...payment,
         groupName: payment.user_groups?.name || null
       }));
-
-      return paymentsWithGroupName;
     } catch {
       return [];
     }
