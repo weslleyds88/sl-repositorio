@@ -28,8 +28,6 @@ function ForgotPassword({ onCancel }) {
           <p className="text-gray-800 text-center mb-6 leading-relaxed">
             Para resetar a senha, entre em contato com o{' '}
             <span className="text-primary-600 font-semibold">Medeiros</span>
-            {' '}ou{' '}
-            <span className="text-primary-600 font-semibold">Vitorino</span>
             {' '}para que a senha seja alterada.
           </p>
 
@@ -42,13 +40,13 @@ function ForgotPassword({ onCancel }) {
                 <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary-100 text-primary-700 font-semibold flex items-center justify-center text-xs">
                   1
                 </span>
-                <span>Entre em contato com Medeiros ou Vitorino.</span>
+                <span>Entre em contato com Medeiros.</span>
               </li>
               <li className="flex gap-3">
                 <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary-100 text-primary-700 font-semibold flex items-center justify-center text-xs">
                   2
                 </span>
-                <span>Eles vão alterar sua senha no sistema.</span>
+                <span>Ele vai alterar sua senha no sistema.</span>
               </li>
               <li className="flex gap-3">
                 <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary-100 text-primary-700 font-semibold flex items-center justify-center text-xs">
