@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { formatCurrency } from '../utils/dateUtils';
+import { formatCurrency, getPaymentYears } from '../utils/dateUtils';
 import ExportButtons from './ExportButtons';
 import PendingByGroupExport from './PendingByGroupExport';
 import Notifications from './Notifications';
@@ -9,6 +9,14 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
   // Estados para filtros independentes de mês e ano
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const availableYears = useMemo(() => getPaymentYears(payments), [payments]);
+
+  useEffect(() => {
+    if (availableYears.length === 0) return;
+    if (!availableYears.includes(selectedYear)) {
+      setSelectedYear(availableYears[0]);
+    }
+  }, [availableYears, selectedYear]);
   
   // (formatMonthName) removida por não estar em uso
   
@@ -415,11 +423,9 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
               onChange={(e) => setSelectedYear(e.target.value)}
               className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             >
-              <option value="2023">2023</option>
-              <option value="2024">2024</option>
-              <option value="2025">2025</option>
-              <option value="2026">2026</option>
-              <option value="2027">2027</option>
+              {availableYears.map((year) => (
+                <option key={year} value={year}>{year}</option>
+              ))}
             </select>
           </div>
         </div>

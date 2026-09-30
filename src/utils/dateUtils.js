@@ -132,3 +132,22 @@ export const getMonthRange = (monthString) => {
   const end = endOfMonth(new Date(year, month - 1));
   return { start, end };
 };
+
+export const getPaymentYears = (payments = []) => {
+  const years = new Set([String(new Date().getFullYear())]);
+
+  (payments || []).forEach((payment) => {
+    if (!payment?.due_date) return;
+    const value = String(payment.due_date);
+    if (/^\d{4}-/.test(value)) {
+      years.add(value.slice(0, 4));
+      return;
+    }
+    const parsed = new Date(payment.due_date);
+    if (!Number.isNaN(parsed.getTime())) {
+      years.add(String(parsed.getFullYear()));
+    }
+  });
+
+  return Array.from(years).sort((a, b) => b.localeCompare(a));
+};

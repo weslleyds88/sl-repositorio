@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { formatCurrency } from '../utils/dateUtils';
+import { formatCurrency, getPaymentYears } from '../utils/dateUtils';
 import { buildPendingByGroupRows, sumPendingByGroupRows } from '../utils/pendingByGroup';
 import { exportPendingByGroupToXLSX } from '../utils/exportXLSX';
 
@@ -7,18 +7,7 @@ const PendingByGroupExport = ({ members, payments, defaultYear }) => {
   const [open, setOpen] = useState(false);
   const [year, setYear] = useState(defaultYear || 'all');
 
-  const yearOptions = useMemo(() => {
-    const years = new Set(['2023', '2024', '2025', '2026', '2027']);
-    years.add(String(new Date().getFullYear()));
-    (payments || []).forEach((payment) => {
-      if (!payment.due_date) return;
-      const value = String(payment.due_date);
-      if (/^\d{4}-/.test(value)) {
-        years.add(value.slice(0, 4));
-      }
-    });
-    return Array.from(years).sort();
-  }, [payments]);
+  const yearOptions = useMemo(() => getPaymentYears(payments), [payments]);
 
   const rows = useMemo(
     () => buildPendingByGroupRows(payments, members, year),
