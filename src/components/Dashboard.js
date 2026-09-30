@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '../utils/dateUtils';
 import ExportButtons from './ExportButtons';
+import PendingByGroupExport from './PendingByGroupExport';
 import Notifications from './Notifications';
 
 const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefresh, isAdmin, supabase, currentUser }) => {
@@ -351,6 +352,11 @@ const Dashboard = ({ db, members, payments, currentMonth, onMonthChange, onRefre
           />
           {isAdmin && (
             <>
+              <PendingByGroupExport
+                members={members}
+                payments={payments}
+                defaultYear={selectedYear}
+              />
               <ExportButtons
                 members={members}
                 payments={payments.filter(p => {

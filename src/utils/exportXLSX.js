@@ -330,3 +330,49 @@ export const exportTicketsToXLSX = (tickets) => {
   const fileName = `tickets_${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, fileName);
 };
+
+export const exportPendingByGroupToXLSX = (rows, yearLabel) => {
+  const totals = rows.reduce(
+    (acc, row) => ({
+      cobrado: acc.cobrado + row.cobrado,
+      pago: acc.pago + row.pago,
+      pendente: acc.pendente + row.pendente
+    }),
+    { cobrado: 0, pago: 0, pendente: 0 }
+  );
+
+  const ws_data = [
+    ['Atleta', 'Grupo', 'Cobrado', 'Pago', 'Pendente'],
+    ...rows.map((row) => [
+      row.atleta,
+      row.grupo,
+      row.cobrado,
+      row.pago,
+      row.pendente
+    ]),
+    ['TOTAL', '', totals.cobrado, totals.pago, totals.pendente]
+  ];
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(ws_data);
+  ws['!cols'] = [
+    { width: 32 },
+    { width: 22 },
+    { width: 14 },
+    { width: 14 },
+    { width: 14 }
+  ];
+
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let R = 1; R <= range.e.r; ++R) {
+    [2, 3, 4].forEach((col) => {
+      const cell_address = XLSX.utils.encode_cell({ c: col, r: R });
+      if (!ws[cell_address]) return;
+      ws[cell_address].z = '"R$ "#,##0.00';
+    });
+  }
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Pendências por grupo');
+  const suffix = String(yearLabel || 'todos').replace(/\s+/g, '-').toLowerCase();
+  XLSX.writeFile(wb, `pendencias-por-grupo-${suffix}.xlsx`);
+};
